@@ -1,0 +1,50 @@
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const rendererPath = path.join(__dirname, "..", "homepage-renderer.js");
+const manifestPath = path.join(__dirname, "..", "manifest.json");
+const renderer = fs.readFileSync(rendererPath, "utf8");
+const manifest = fs.readFileSync(manifestPath, "utf8");
+
+const footerStart = renderer.indexOf("const createFooter =");
+const elevatorStart = renderer.indexOf("const createElevator =", footerStart);
+assert.ok(footerStart >= 0 && elevatorStart > footerStart, "footer renderer block exists");
+const footerBlock = renderer.slice(footerStart, elevatorStart);
+
+assert.match(footerBlock, /createNode\(root, "div", "international-footer"\)/);
+assert.match(footerBlock, /link-box b-footer-wrap/);
+assert.match(footerBlock, /footer_left/);
+assert.match(footerBlock, /\["bilibili", "link-a"/);
+assert.match(footerBlock, /\["传送门", "link-b"/);
+assert.match(footerBlock, /footer_right/);
+assert.match(footerBlock, /link-item link-c/);
+assert.match(footerBlock, /biliapp/);
+assert.match(footerBlock, /charity/);
+assert.match(footerBlock, /weibo/);
+assert.match(footerBlock, /weixin/);
+assert.match(footerBlock, /partner b-footer-wrap/);
+assert.match(footerBlock, /sprite bg1/);
+assert.match(footerBlock, /sprite bg2/);
+assert.match(footerBlock, /sprite bg3/);
+assert.match(footerBlock, /createIconFont\(root, entry\.iconClass, "bili-footer-font", lifecycle, "i"\)/);
+assert.match(footerBlock, /qrAssetKey: ASSET_KEYS\.FOOTER_APP_QR/);
+assert.match(footerBlock, /qrAssetKey: ASSET_KEYS\.FOOTER_WEIBO_QR/);
+assert.match(footerBlock, /createQr\(entry\.qrAssetKey\)/);
+assert.match(renderer, /"bili-footer-icon_weibo": Object\.freeze\(\{ codePoint: 0xE71C/);
+assert.match(renderer, /"bili-footer-icon_wechat": Object\.freeze\(\{ codePoint: 0xE751/);
+assert.match(renderer, /"bili-footer-icon_download": Object\.freeze\(\{ codePoint: 0xE752/);
+assert.match(renderer, /\.international-footer \.link-box \.link-item\.link-c a:hover \.qrcode/);
+assert.match(renderer, /\.international-footer \.link-box \.link-item\.link-c a:focus-visible \.qrcode/);
+assert.match(renderer, /\.international-footer \{\s+--footer-wrap: 1630px;/);
+assert.match(renderer, /@media screen and \(max-width: 1870px\) \{ \.international-footer \{ --footer-wrap: 1414px; \} \}/);
+assert.match(renderer, /@media screen and \(max-width: 1654px\)[\s\S]*footer_right[\s\S]*280px/);
+assert.match(renderer, /@media screen and \(max-width: 1438px\) \{ \.international-footer \{ --footer-wrap: 999px; \} \}/);
+assert.match(renderer, /@media screen and \(max-width: 980px\)[\s\S]*international-footer \.link-box/);
+assert.match(manifest, /homepage-runtime\/footer-v2\/biliapp_qrcode\.png/);
+assert.match(manifest, /homepage-runtime\/footer-v2\/weibo_qrcode\.png/);
+assert.match(manifest, /homepage-runtime\/footer-v2\/weixin_qrcode\.gif/);
+assert.match(manifest, /homepage-runtime\/footer-v2\/charity\.png/);
+assert.match(manifest, /homepage-runtime\/footer-v2\/hz_icon\.png/);
+
+console.log("FOOTER_STATIC=PASS");

@@ -1,0 +1,153 @@
+{
+  "manifest_version": 3,
+  "name": "bili-retro",
+  "short_name": "bili-retro",
+  "version": "0.2.64",
+  "description": "Exact-root legacy homepage fixture shell.",
+  "icons": {
+    "16": "assets/icons/bili-retro-16.png",
+    "32": "assets/icons/bili-retro-32.png",
+    "48": "assets/icons/bili-retro-48.png",
+    "128": "assets/icons/bili-retro-128.png"
+  },
+  "action": {
+    "default_title": "bili-retro",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "assets/icons/bili-retro-16.png",
+      "32": "assets/icons/bili-retro-32.png",
+      "48": "assets/icons/bili-retro-48.png",
+      "128": "assets/icons/bili-retro-128.png"
+    }
+  },
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://api.bilibili.com/*",
+    "https://s.search.bilibili.com/*",
+    "https://manga.bilibili.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.bilibili.com/",
+        "https://www.bilibili.com/index.html"
+      ],
+      "js": [
+        "homepage-renderer.js",
+        "content.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "assets/homepage/homepage-runtime/banner/fallback-1920x180.webp",
+        "assets/homepage/homepage-runtime/banner/logo-324x156.webp",
+        "assets/homepage/homepage-runtime/banner/layers/01-sky.png",
+        "assets/homepage/homepage-runtime/banner/layers/02-cloud.png",
+        "assets/homepage/homepage-runtime/banner/layers/03-character-33.png",
+        "assets/homepage/homepage-runtime/banner/layers/04-left-base.png",
+        "assets/homepage/homepage-runtime/banner/layers/05-car.png",
+        "assets/homepage/homepage-runtime/banner/layers/06-left-building.png",
+        "assets/homepage/homepage-runtime/banner/layers/07-character-22.png",
+        "assets/homepage/homepage-runtime/banner/layers/08-flower-field.png",
+        "assets/homepage/homepage-runtime/banner/layers/09.png",
+        "assets/homepage/homepage-runtime/banner/layers/10.png",
+        "assets/homepage/homepage-runtime/banner/layers/11.png",
+        "assets/homepage/homepage-runtime/banner/layers/12-left-foreground.png",
+        "assets/homepage/homepage-runtime/banner/layers/13-left-leaf.png",
+        "assets/homepage/homepage-runtime/banner/layers/14-right-leaf.png",
+        "assets/homepage/homepage-runtime/banner/layers/15-debris.png",
+        "assets/homepage/homepage-runtime/banner/layers/16-right-grass.png",
+        "assets/homepage/homepage-runtime/banner/layers/17-front-grass.png",
+        "assets/homepage/homepage-runtime/banner/layers/18-motion.webm",
+        "assets/homepage/homepage-runtime/international-home/iconfont.woff2",
+        "assets/homepage/homepage-runtime/international-home/icon_slide_selected.png",
+        "assets/homepage/homepage-runtime/international-home/download-client.svg",
+        "assets/homepage/mini-header-popovers/download/client-download-qr.png",
+        "assets/homepage/mini-header-popovers/download/pink-download.svg",
+        "assets/homepage/homepage-runtime/international-home/category-symbols.svg",
+        "assets/homepage/homepage-runtime/international-home/icon_gold.png",
+        "assets/homepage/homepage-runtime/international-home/icon_silver.png",
+        "assets/homepage/homepage-runtime/international-home/bgm-nodata.png",
+        "assets/homepage/homepage-runtime/header/a1a87acb-highschool.png",
+        "assets/homepage/mini-header-auth/video.png",
+        "assets/homepage/mini-header-auth/time.png",
+        "assets/homepage/mini-header-auth/danmaku.png",
+        "assets/homepage/mini-header-auth/hd.png",
+        "assets/homepage/homepage-runtime/mini-header-vip/jTAZ4HXjQa.png@230w_68h_1c.webp",
+        "assets/homepage/homepage-runtime/international-home/tab2233.png",
+        "assets/homepage/fixture-covers/photo.png",
+        "assets/homepage/homepage-runtime/footer-v2/biliapp_qrcode.png",
+        "assets/homepage/homepage-runtime/footer-v2/weibo_qrcode.png",
+        "assets/homepage/homepage-runtime/footer-v2/weixin_qrcode.gif",
+        "assets/homepage/homepage-runtime/footer-v2/charity.png",
+        "assets/homepage/homepage-runtime/footer-v2/partner.png",
+        "assets/homepage/homepage-runtime/footer-v2/pic962110.png",
+        "assets/homepage/homepage-runtime/footer-v2/hz_icon.png",
+        "assets/homepage/mini-login-v2/22_open.png",
+        "assets/homepage/mini-login-v2/22_close.png",
+        "assets/homepage/mini-login-v2/33_open.png",
+        "assets/homepage/mini-login-v2/33_close.png",
+        "assets/homepage/mini-login-v2/close.svg",
+        "assets/homepage/mini-login-v2/wechat.png",
+        "assets/homepage/mini-login-v2/weibo.png",
+        "assets/homepage/mini-login-v2/qq.png",
+        "assets/homepage/search/mark-live.gif",
+        "assets/homepage/search/mark-anniversary.png",
+        "assets/homepage/promote/bili-tuiguang.svg",
+        "assets/homepage/floors/bili-douga.svg",
+        "assets/homepage/mini-header-popovers/game/featured-a8f11d7d879a3d5b81e66a8d0265a41bdb5bc890.jpg",
+        "assets/homepage/mini-header-popovers/game/tile-f2726119665b7434e8006569435e5662b6445c36.png",
+        "assets/homepage/mini-header-popovers/game/tile-003897d408429b3caa7c09ca96097f3251f2f922.png",
+        "assets/homepage/mini-header-popovers/game/tile-14073d0252b80884335ebee91608257f25bec5ed.png",
+        "assets/homepage/mini-header-popovers/game/hover-135d7876759891b797beb58d3282351f78f0feed.png",
+        "assets/homepage/mini-header-popovers/game/title.png",
+        "assets/homepage/mini-header-popovers/game/line.png",
+        "assets/homepage/mini-header-popovers/game/shadow.png",
+        "assets/homepage/mini-header-popovers/live/face-44ca2be4d17a8c7cd545fdc933808811151e20eb.jpg@100w_100h.webp",
+        "assets/homepage/mini-header-popovers/live/face-50900541a74f7875867c38a1e8e572b44b388060.jpg@100w_100h.webp",
+        "assets/homepage/mini-header-popovers/live/face-442b895d10bbce6a5cd5746fc383f27fb06207e0.jpg@100w_100h.webp",
+        "assets/homepage/mini-header-popovers/live/face-7a7b0e1e2be687c6373edb72df9df3269610b201.jpg@100w_100h.webp",
+        "assets/homepage/mini-header-popovers/live/face-a20ae17bc93de9a31480d8004b422659a052178a.jpg@100w_100h.webp",
+        "assets/homepage/mini-header-popovers/live/face-84a861facfa041b46f7a30897e9ed3f2e05e0519.jpg@100w_100h.webp",
+        "assets/homepage/mini-header-popovers/game/hover-f526bcdabe6f7598df2be6f3b998b0917d76441d.png",
+        "assets/homepage/mini-header-popovers/game/hover-6b40f23045e1f490469da0b8c1bc3aeab68a4de5.png",
+        "assets/homepage/mini-header-popovers/game/hover-65354c21d0fc5a81c1504de39eea428aa6c315f9.png",
+        "assets/homepage/mini-header-popovers/game/hover-da2862fccb514dc5fc71cbcdb0b1d72b739c66c9.png",
+        "assets/homepage/mini-header-popovers/game/hover-f3f8a73797dede3cd1e2d1d0d9872dc4be57e334.png",
+        "assets/homepage/mini-header-popovers/game/hover-f4537ad57ada676044aaab55f4a162cc8f99f7e0.png",
+        "assets/homepage/mini-header-popovers/manga/rank-hover-3654e0590267af6a8ef514b5db557aa784bbc1b4.png",
+        "assets/homepage/mini-header-popovers/manga/rank-hover-1572f58dd448a1361350eb4079472d361a292181.jpg@320w",
+        "assets/homepage/mini-header-popovers/manga/rank-hover-d864e1f1041f55e703e24d7bb825e13994f22bab.jpg@320w",
+        "assets/homepage/mini-header-popovers/manga/rank-hover-c62668e300b5212fe5504f6fa9b4b5c630f8ebeb.jpg@320w",
+        "assets/homepage/mini-header-popovers/manga/rank-hover-789aa94f8752ddf0346445ae31303deb3209b732.png@320w",
+        "assets/homepage/mini-header-popovers/manga/rank-hover-b8eca33b94c324bcaa0dda202a39f2d9d162c587.png@320w",
+        "assets/homepage/mini-header-popovers/manga/recommend-5d41943c5e2e71c1fb6564676c1ee312ea2684f5.png@272w",
+        "assets/homepage/mini-header-popovers/manga/recommend-d9ee84f8bab10116c9521d6344c520699a6968e1.jpg@272w",
+        "assets/homepage/mini-header-popovers/manga/recommend-78876fdef412fa995ae5cce7cc30af1ff61f4ac7.png@272w",
+        "assets/homepage/mini-header-popovers/manga/recommend-098f9f01e59beecd77d14b0e2eee5ef4cb549d0b.jpg@272w"
+      ],
+      "matches": [
+        "https://www.bilibili.com/*"
+      ]
+    },
+    {
+      "resources": [
+        "page-bridge.js"
+      ],
+      "matches": [
+        "https://www.bilibili.com/*"
+      ]
+    }
+  ],
+  "background": {
+    "service_worker": "sw.js",
+    "type": "module"
+  }
+}

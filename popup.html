@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>bili-retro 诊断</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="topbar">
+    <img src="assets/icons/bili-retro-32.png" width="32" height="32" alt="">
+    <div class="brand">
+      <strong>bili-retro</strong>
+      <span id="connectionText">正在连接</span>
+    </div>
+    <button id="refreshButton" class="icon-button" type="button" title="立即刷新" aria-label="立即刷新">↻</button>
+  </header>
+
+  <main>
+    <section class="summary" aria-label="状态总览">
+      <div><span class="status-dot green"></span><strong id="healthyCount">0</strong><small>正常</small></div>
+      <div><span class="status-dot yellow"></span><strong id="pendingCount">0</strong><small>处理中</small></div>
+      <div><span class="status-dot red"></span><strong id="failedCount">0</strong><small>异常</small></div>
+      <div><span class="status-dot gray"></span><strong id="unknownCount">0</strong><small>未知</small></div>
+    </section>
+
+    <nav class="view-tabs" aria-label="诊断视图">
+      <button type="button" class="active" data-view="status">实时状态</button>
+      <button type="button" data-view="errors">错误日志 <span id="errorBadge">0</span></button>
+      <button type="button" data-view="feedback">反馈导出</button>
+    </nav>
+
+    <section id="statusView" class="view active">
+      <div id="statusList" class="status-list" aria-live="polite"></div>
+    </section>
+
+    <section id="errorsView" class="view">
+      <div id="errorList" class="error-list"></div>
+    </section>
+
+    <section id="feedbackView" class="view feedback-view">
+      <label for="feedbackText">问题描述（可选）</label>
+      <textarea id="feedbackText" maxlength="2000" placeholder="例如：登录后动画排行榜一直显示暂不可用"></textarea>
+      <label class="check-row">
+        <input id="includeScreenshot" type="checkbox" checked>
+        <span>包含当前页面截图（可能含账号画面）</span>
+      </label>
+      <div class="export-actions">
+        <button id="exportBundleButton" type="button" class="primary-button">↓ 诊断包 JSON</button>
+        <button id="exportReportButton" type="button">↓ 文本报告</button>
+      </div>
+      <p id="exportStatus" class="export-status" role="status"></p>
+    </section>
+  </main>
+
+  <footer>
+    <span id="versionText">--</span>
+    <span id="updatedText">尚未更新</span>
+  </footer>
+  <script src="popup.js"></script>
+</body>
+</html>
