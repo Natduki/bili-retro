@@ -117,8 +117,11 @@ Host permissions：
 
 
 
-#### 参考致谢
+## 参考致谢
 
 [Bilibili-Old](https://github.com/MotooriKashin/Bilibili-Old)
 
 https://greasyfork.org/zh-CN/scripts/581229-b%E7%AB%99%E6%97%A7%E7%89%88%E9%A6%96%E9%A1%B5
+
+## 联系开发者
+旧版界面交流群：277574384
