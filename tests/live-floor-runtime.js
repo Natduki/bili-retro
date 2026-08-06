@@ -19,7 +19,12 @@ const room = (id, extra = {}) => ({
 const payloads = [
   { code: 0, extra: true, data: { online_total: 987654, recommend_room_list: [...Array.from({ length: 12 }, (_, i) => room(i + 1)), room(99, { cover: "https://evil.example/x" })], ranking_list: Array.from({ length: 6 }, (_, i) => { const value = room(30 + i); return { roomid: value.roomid, title: value.title, uname: value.uname, online: value.online, face: value.face, link: "/6", raw: true }; }), preview_banner_list: [{ raw: true }] } },
   { code: 0, data: { recommend_room_list: Array.from({ length: 12 }, (_, i) => room(50 + i)), raw: "ignored" } },
-  { code: 0, data: { list: [room(80, { area_v2_name: undefined }), room(81, { face: null })], account: { mid: 1 } } }
+  { code: 0, data: { list: [room(80, {
+    area_v2_name: undefined,
+    cover: "http://i2.hdslb.com/bfs/face/following-avatar-80.jpg",
+    face: "http://i2.hdslb.com/bfs/face/following-avatar-80.jpg",
+    pic: "http://i0.hdslb.com/bfs/live/following-room-cover-80.jpg"
+  }), room(81, { face: null })], account: { mid: 1 } } }
 ];
 const windowObject = {
   __EXTENSION_B_RUN_SELF_TESTS__: true,
@@ -45,7 +50,10 @@ assert.equal(projected.ranks.length, 6);
 assert.deepEqual(Object.keys(projected.rooms[0]).sort(), ["areaName", "cover", "face", "href", "keyframe", "online", "roomId", "title", "uname"]);
 assert.deepEqual(Object.keys(projected.ranks[0]).sort(), ["face", "href", "online", "roomId", "title", "uname"]);
 assert.equal(JSON.stringify(projected).includes("token"), false);
-assert.equal(local(api.projectLiveFloorFollowing(realm(payloads[2]))).rooms.length, 1, "bad following item skipped");
+const followingProjection = local(api.projectLiveFloorFollowing(realm(payloads[2])));
+assert.equal(followingProjection.rooms.length, 1, "bad following item skipped");
+assert.equal(followingProjection.rooms[0].cover, "https://i0.hdslb.com/bfs/live/following-room-cover-80.jpg", "following feed uses pic instead of avatar-valued cover");
+assert.equal(followingProjection.rooms[0].keyframe, "https://i1.hdslb.com/bfs/live/keyframe-80.jpg", "following hover keeps the live keyframe");
 assert.deepEqual(local(api.projectLiveFloorFollowing(realm({ code: 0, data: { list: [], extra: true } }))), { rooms: [] });
 
 assert.match(rendererSource, /floor\.id = "bili_live"/);

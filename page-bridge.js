@@ -1773,6 +1773,13 @@
     const status = articles.length >= 4 ? "success" : articles.length > 0 ? "partial" : "empty";
     return Object.freeze({ articles: Object.freeze(articles), batch, ranks: Object.freeze(ranks), status });
   };
+  const firstLiveAssetUrl = (...candidates) => {
+    for (const candidate of candidates) {
+      const value = normalizeLiveAssetUrl(candidate);
+      if (value) return value;
+    }
+    return "";
+  };
   const normalizeLiveFloorRoom = (entry) => {
     const areaName = entry && (entry.area_v2_name || entry.area_name || entry.parent_name || "");
     if (!isPlainObject(entry)
@@ -1782,9 +1789,9 @@
       || !isLiveText(entry.uname, 256)
       || (areaName !== "" && !isLiveText(areaName, 128))
       || !isBoundedNonNegativeInteger(entry.online, 1000000000000)) return null;
-    const cover = normalizeLiveAssetUrl(entry.cover || entry.user_cover || entry.system_cover);
-    const keyframe = normalizeLiveAssetUrl(entry.keyframe || entry.cover || entry.user_cover || entry.system_cover);
-    const face = normalizeLiveAssetUrl(entry.face);
+    const cover = firstLiveAssetUrl(entry.cover, entry.user_cover, entry.system_cover);
+    const keyframe = firstLiveAssetUrl(entry.keyframe, entry.cover, entry.user_cover, entry.system_cover);
+    const face = firstLiveAssetUrl(entry.face);
     if (!cover || !keyframe || !face) return null;
     return Object.freeze({
       roomId: entry.roomid,
@@ -1798,12 +1805,38 @@
       online: entry.online
     });
   };
-  const projectLiveFloorRooms = (source, limit) => {
+  const normalizeLiveFloorFollowingRoom = (entry) => {
+    const areaName = entry && (entry.area_v2_name || entry.area_name || entry.parent_name || "");
+    if (!isPlainObject(entry)
+      || !isBoundedNonNegativeInteger(entry.roomid, 100000000000)
+      || entry.roomid <= 0
+      || !isLiveText(entry.title, 256)
+      || !isLiveText(entry.uname, 256)
+      || (areaName !== "" && !isLiveText(areaName, 128))
+      || !isBoundedNonNegativeInteger(entry.online, 1000000000000)) return null;
+    // The following-feed endpoint puts the avatar in `cover`; `pic` is the room cover.
+    const cover = firstLiveAssetUrl(entry.pic, entry.room_cover, entry.cover, entry.user_cover, entry.system_cover);
+    const keyframe = firstLiveAssetUrl(entry.keyframe, entry.pic, entry.room_cover, entry.cover, entry.user_cover, entry.system_cover);
+    const face = firstLiveAssetUrl(entry.face);
+    if (!cover || !keyframe || !face) return null;
+    return Object.freeze({
+      roomId: entry.roomid,
+      title: entry.title,
+      href: `https://live.bilibili.com/${entry.roomid}`,
+      cover,
+      keyframe,
+      face,
+      uname: entry.uname,
+      areaName,
+      online: entry.online
+    });
+  };
+  const projectLiveFloorRooms = (source, limit, normalizeRoom = normalizeLiveFloorRoom) => {
     const rooms = [];
     const seen = new Set();
     for (const entry of source) {
       if (rooms.length >= limit) break;
-      const room = normalizeLiveFloorRoom(entry);
+      const room = normalizeRoom(entry);
       if (!room || seen.has(room.roomId)) continue;
       seen.add(room.roomId);
       rooms.push(room);
@@ -1851,7 +1884,7 @@
   const projectLiveFloorFollowing = (raw) => {
     if (!isPlainObject(raw) || raw.code !== 0 || !isPlainObject(raw.data)
       || !Array.isArray(raw.data.list)) throw new Error("schema");
-    return Object.freeze({ rooms: projectLiveFloorRooms(raw.data.list, 12) });
+    return Object.freeze({ rooms: projectLiveFloorRooms(raw.data.list, 12, normalizeLiveFloorFollowingRoom) });
   };
   const normalizeBannerText = (value, fallback = "") => typeof value === "string"
     && value.length <= 160 && !/[\u0000-\u001F\u007F]/.test(value) ? value.trim() : fallback;
