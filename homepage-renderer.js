@@ -2916,7 +2916,7 @@
     "bili-icon_caozuo_xiangyou-copy": Object.freeze({ codePoint: 0xE758, fallbackClass: "icon-font-fallback--empty", fallbackText: "" }),
     "bili-icon_caozuo_huanyihuan": Object.freeze({ codePoint: 0xE73C, fallbackClass: "icon-font-fallback--text", fallbackText: "↻" }),
     "bili-icon_youdaohang_paixu": Object.freeze({ codePoint: 0xE74D, fallbackClass: "icon-font-fallback--text", fallbackText: "≡" }),
-    "bili-icon_youdaohang_xiaodianshitianxian": Object.freeze({ codePoint: 0xE74F, fallbackClass: "icon-font-fallback--text", fallbackText: "^" }),
+    "bili-icon_youdaohang_xiaodianshitianxian": Object.freeze({ codePoint: 0xE74F, fallbackClass: "icon-font-fallback--empty", fallbackText: "" }),
     "bili-general_pullup_s": Object.freeze({ codePoint: 0xE6EC, fallbackClass: "icon-font-fallback--text", fallbackText: "↑" }),
     "bili-icon_dingdao_gerenzhongxin": Object.freeze({ codePoint: 0xE722, fallbackClass: "icon-font-fallback--empty", fallbackText: "" }),
     "bili-icon_dingdao_tougaoguanli": Object.freeze({ codePoint: 0xE723, fallbackClass: "icon-font-fallback--empty", fallbackText: "" }),

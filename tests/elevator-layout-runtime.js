@@ -381,6 +381,7 @@ assert(!rendererSource.includes("first-screen-tight") && !rendererSource.include
 assert(/@media \(max-height: 700px\) \{\s*\.elevator \{[^}]*--elevator-floor-h: 20px;[^}]*--elevator-floor-font: 12px;[^}]*--elevator-sort-h: 28px;[^}]*--elevator-back-h: 28px;/s.test(rendererSource), "639 viewport keeps 20px floor and 12px font media tier");
 assert(rendererSource.includes("bottom: nextTop + initialGeometry.visualHeight"), "candidate uses current initial geometry");
 assert(rendererSource.includes(".elevator > .ear.bilifont[data-icon-glyph]"), "final scoped ear selector remains present");
+assert(rendererSource.includes('"bili-icon_youdaohang_xiaodianshitianxian": Object.freeze({ codePoint: 0xE74F, fallbackClass: "icon-font-fallback--empty", fallbackText: "" })'), "elevator ear has no text fallback");
 assert(rendererSource.includes("transform: translate(-50%, -100%)"), "ear remains attached above list-box frame");
 assert(rendererSource.includes(".icon-font-fallback--text { color: #333; font-size: 12px; line-height: 8px; }"), "ear fallback geometry remains present");
 
