@@ -1960,7 +1960,9 @@
   #primaryPageTab .round.orange { background: #ff716d; }
   #primaryPageTab .round.channel { background: #6dc781; }
   #primaryPageTab .round .bilifont { display: inline-flex; width: 36px; height: 36px; align-items: center; justify-content: center; color: #fff; font-size: 28px; line-height: 36px; }
-  #primaryPageTab .dynamic-update { position: absolute; inset: 0; width: 36px; height: 36px; pointer-events: none; }
+  #primaryPageTab .dynamic-update { position: absolute; inset: 0; display: block; width: 36px; height: 36px; overflow: hidden; border-radius: 50%; pointer-events: none; }
+  #primaryPageTab .dynamic-update[hidden] { display: none; }
+  #primaryPageTab .dynamic-update__avatar { display: block; width: 100%; height: 100%; object-fit: cover; }
   #primaryPageTab .page-link > span { display: block; width: 100%; height: 20px; flex: 0 0 20px; overflow: hidden; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
   .primary-menu-itnl > .tab-line-itnl { display: inline-block; width: 1px; height: 46px; flex: 0 0 1px; margin: 0 20px; padding: 0; border-left: 1px solid #e7e7e7; background: transparent; }
   .primary-menu-itnl > .tab-line-itnl.none { margin: 0 24px 0 0; }
@@ -4703,18 +4705,41 @@
   const isDynamicData = (value) => value !== null
     && typeof value === "object"
     && !Array.isArray(value)
-    && Object.keys(value).sort().join("\u001F") === "count"
+    && Object.keys(value).sort().join("\u001F") === "avatar\u001Fcount"
     && Number.isSafeInteger(value.count)
-    && value.count >= 0;
+    && value.count >= 0
+    && (value.avatar === null || isLiveAvatarUrl(value.avatar));
+  const clearDynamicMenuAvatar = (node) => {
+    if (!node) return;
+    node.replaceChildren();
+    node.setAttribute("hidden", "true");
+  };
+  const applyDynamicMenuAvatar = (node, data) => {
+    if (!node || !data || data.count <= 0 || !data.avatar || !isLiveAvatarUrl(data.avatar)) {
+      clearDynamicMenuAvatar(node);
+      return;
+    }
+    const avatar = node.ownerDocument.createElement("img");
+    avatar.setAttribute("class", "dynamic-update__avatar");
+    avatar.setAttribute("src", data.avatar);
+    avatar.setAttribute("alt", "");
+    avatar.addEventListener("error", () => {
+      if (avatar.isConnected) clearDynamicMenuAvatar(node);
+    }, { once: true });
+    node.replaceChildren(avatar);
+    node.removeAttribute("hidden");
+  };
   const setDynamicData = (panel, data) => {
     const view = panel && panel.__dynamicView;
     if (!view || !view.triggerBadge) return false;
     if (data === null) {
       applyDynamicBadge(view.triggerBadge, 0);
+      clearDynamicMenuAvatar(view.primaryMenuEntrance);
       return true;
     }
     if (!isDynamicData(data)) return false;
     applyDynamicBadge(view.triggerBadge, data.count);
+    applyDynamicMenuAvatar(view.primaryMenuEntrance, data);
     return true;
   };
 
@@ -7516,6 +7541,7 @@
       ["热门", "//www.bilibili.com/v/popular/all", "bili-remen", "orange", false, false],
       ["频道", "//www.bilibili.com/v/channel", "bili-pindao", "channel", false, true]
     ];
+    let dynamicEntrance = null;
     for (const [label, href, iconClass, roundClass, active, dynamic] of pageEntries) {
       const item = createNode(root, "li");
       if (active) item.setAttribute("aria-current", "page");
@@ -7525,7 +7551,12 @@
       if (dynamic) {
         const update = createNode(root, "div", "dynamic-update");
         update.setAttribute("aria-hidden", "true");
-        if (label === "动态") update.setAttribute("data-role", "dynamic-entrance");
+        if (label === "动态") {
+          update.setAttribute("data-role", "dynamic-entrance");
+          update.setAttribute("hidden", "true");
+          dynamicEntrance = update;
+          addListenerWithCleanup(link, "click", () => clearDynamicMenuAvatar(update), lifecycle && lifecycle.cleanups);
+        }
         round.appendChild(update);
       }
       link.appendChild(round);
@@ -7624,6 +7655,7 @@
       friendship,
       popovers,
       countBadges,
+      dynamicEntrance,
       destroyed: false,
       isActive: lifecycle && typeof lifecycle.isActive === "function" ? lifecycle.isActive : () => true
     };
@@ -10427,6 +10459,9 @@
     const headerView = createHeader(root, rendererLifecycle);
     let banner = createBanner(root, BUILTIN_BANNER_MODEL);
     const menu = createPrimaryMenu(root, rendererLifecycle);
+    if (headerView.dynamicPanel && headerView.dynamicPanel.__dynamicView) {
+      headerView.dynamicPanel.__dynamicView.primaryMenuEntrance = menu.__primaryMenuView.dynamicEntrance;
+    }
     const firstScreen = createNode(root, "section", "first-screen b-wrap");
     const firstScreenSpace = createNode(root, "div", "space-between report-wrap-module");
     const focusCarousel = createNode(root, "div", "focus-carousel home-slide report-wrap-module report-scroll-module");

@@ -80,7 +80,7 @@ assert.ok(historyValidatorStart >= 0 && historyValidatorEnd > historyValidatorSt
         };
       },
       makeDynamicSummary: (count, withExtraKey = false) => {
-        const value = { count };
+        const value = { count, avatar: null };
         if (withExtraKey) value.extra = true;
         return value;
       },
@@ -114,7 +114,7 @@ assert.ok(historyValidatorStart >= 0 && historyValidatorEnd > historyValidatorSt
     tabs: [{ ...maxFavoriteSummary.tabs[0], items: [...maxFavoriteSummary.tabs[0].items, { ...maxFavoriteSummary.tabs[0].items[0] }] }, ...maxFavoriteSummary.tabs.slice(1)]
   }), false, "favorite validator rejects the 21st item");
   for (const count of [0, 7, 99, Number.MAX_SAFE_INTEGER]) {
-    assert.equal(summaryValidatorHarness.isBridgeSummaryData("DYNAMIC_SUMMARY", summaryValidatorHarness.makeDynamicSummary(count)), true,
+  assert.equal(summaryValidatorHarness.isBridgeSummaryData("DYNAMIC_SUMMARY", summaryValidatorHarness.makeDynamicSummary(count)), true,
       `dynamic exact-key validator accepts count ${count}`);
   }
   for (const invalidDynamic of [
@@ -197,10 +197,11 @@ assert.deepEqual(toLocal(api.OPERATION_ROUTES.DYNAMIC_SUMMARY), [{
   path: "/x/web-interface/dynamic/entrance?alltype_offset=0&video_offset=0&article_offset=0",
   method: "GET"
 }]);
-const dynamicExtra = inBridgeRealm("({ code: 0, message: 'ok', data: { update_info: { item: { count: 7, ignored_item_field: true }, ignored_update_field: 'ignored' }, ignored_data_field: null }, upstream_extra: { secret: 'must-not-leak' } })");
+const dynamicExtra = inBridgeRealm("({ code: 0, message: 'ok', data: { entrance: { icon: 'https://i0.hdslb.com/bfs/face/dynamic-avatar.webp', ignored_entrance_field: true }, update_info: { item: { count: 7, ignored_item_field: true }, ignored_update_field: 'ignored' }, ignored_data_field: null }, upstream_extra: { secret: 'must-not-leak' } })");
 const projectedDynamic = api.projectDynamicSummary(dynamicExtra);
-assert.deepEqual(toLocal(projectedDynamic), { count: 7 });
-assert.deepEqual(Object.keys(projectedDynamic), ["count"]);
+assert.deepEqual(toLocal(projectedDynamic), { count: 7, avatar: "https://i0.hdslb.com/bfs/face/dynamic-avatar.webp" });
+assert.deepEqual(Object.keys(projectedDynamic).sort(), ["avatar", "count"]);
+assert.deepEqual(toLocal(api.projectDynamicSummary(inBridgeRealm("({ code: 0, data: { entrance: { icon: 'https://evil.example/avatar.webp' }, update_info: { item: { count: 7 } } } })"))), { count: 7, avatar: null }, "invalid entrance icon is omitted");
 assert.equal(Object.isFrozen(projectedDynamic), true);
 assert.equal(api.isDynamicSummaryEnvelope(dynamicExtra), true);
 for (const invalid of [
@@ -1110,7 +1111,7 @@ for (const invalid of [
     update_info: { item: { count: 99, ignored: true }, ignored: true },
     ignored: true
   }, { upstream_extra: "ignored" }));
-  assert.deepEqual(toLocal((await dynamicPromise).data), { count: 99 });
+  assert.deepEqual(toLocal((await dynamicPromise).data), { count: 99, avatar: null });
 
   const logoutStart = contentSource.indexOf("  const bindLogoutSurface =");
   const logoutEnd = contentSource.indexOf("  const AUTH_SUMMARY_SURFACES =", logoutStart);
@@ -2385,9 +2386,10 @@ assert.match(contentSource, /const BUILD_MARKER = "stage-11-banner-import-r21"/)
     },
     isBridgeSummaryData: (operation, data) => operation === "DYNAMIC_SUMMARY"
       && data && typeof data === "object"
-      && Object.keys(data).sort().join("\u001F") === "count"
+      && Object.keys(data).sort().join("\u001F") === "avatar\u001Fcount"
       && Number.isSafeInteger(data.count)
-      && data.count >= 0,
+      && data.count >= 0
+      && (data.avatar === null || typeof data.avatar === "string"),
     requestPageBridge: (operation) => {
       assert.equal(operation, "DYNAMIC_SUMMARY");
       dynamicRequests += 1;
@@ -2429,14 +2431,14 @@ assert.match(contentSource, /const BUILD_MARKER = "stage-11-banner-import-r21"/)
   dynamicGroup.dispatch("pointerenter");
   dynamicGroup.dispatch("focusin");
   assert.equal(dynamicRequests, 1, "dynamic refresh events share one in-flight request");
-  dynamicPending.shift()({ count: 7 });
+  dynamicPending.shift()({ count: 7, avatar: null });
   await flushMicrotasks();
   assert.equal(dynamicLifecycle.dynamicLastGood.count, 7);
   assert.equal(dynamicBadge.textContent, "7");
   assert.deepEqual(dynamicStates.at(-1), ["data-extension-b-dynamic-state", "committed"]);
   dynamicHarness.requestDynamicSummary(dynamicLifecycle);
   assert.equal(dynamicRequests, 2);
-  dynamicPending.shift()({ count: "bad" });
+  dynamicPending.shift()({ count: "bad", avatar: null });
   await flushMicrotasks();
   assert.equal(dynamicBadge.textContent, "7", "invalid refresh preserves last-good badge");
   dynamicHarness.resetDynamicSummary(dynamicLifecycle);

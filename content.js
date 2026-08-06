@@ -1148,9 +1148,10 @@
       return ["reply", "at", "like", "sysMsg", "sessionUnread"].every((key) => isBridgeCounter(value[key]));
     }
     if (operation === "DYNAMIC_SUMMARY") {
-      return bridgeOwnKeys(value) === "count"
+      return bridgeOwnKeys(value) === "avatar\u001Fcount"
         && Number.isSafeInteger(value.count)
-        && value.count >= 0;
+        && value.count >= 0
+        && (value.avatar === null || isLiveAvatarUrl(value.avatar));
     }
     if (operation === "FAVORITE_SUMMARY") {
       return isFavoriteData(value);

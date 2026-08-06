@@ -2011,13 +2011,13 @@ check("R3 live nav-user-center DOM geometry and interaction contract", () => {
   const dynamicBadge = dynamicNav.children[0].children[1];
   assert.equal(dynamicBadge.getAttribute("data-role"), "dynamic-entrance");
   assert.equal(dynamicBadge.getAttribute("hidden"), "true");
-  assert.equal(api.setDynamicData(dynamicPanel, { count: 0 }), true);
+  assert.equal(api.setDynamicData(dynamicPanel, { count: 0, avatar: null }), true);
   assert.equal(dynamicBadge.getAttribute("hidden"), "true", "zero dynamic count hides badge");
   assert.equal(dynamicBadge.textContent, "");
-  assert.equal(api.setDynamicData(dynamicPanel, { count: 7 }), true);
+  assert.equal(api.setDynamicData(dynamicPanel, { count: 7, avatar: null }), true);
   assert.equal(dynamicBadge.getAttribute("hidden"), null, "positive dynamic count shows badge");
   assert.equal(dynamicBadge.textContent, "7");
-  assert.equal(api.setDynamicData(dynamicPanel, { count: 99 }), true);
+  assert.equal(api.setDynamicData(dynamicPanel, { count: 99, avatar: null }), true);
   assert.equal(dynamicBadge.textContent, "99+", "large dynamic count uses 99+ display");
   assert.equal(api.setDynamicData(dynamicPanel, { count: 7, extra: true }), false,
     "dynamic renderer rejects extra output keys");

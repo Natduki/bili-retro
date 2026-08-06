@@ -11,6 +11,10 @@ assert.match(source, /const inner = createNode\(root, "div", "primary-menu-itnl"
 assert.match(source, /\.primary-menu-itnl \{ display: flex; height: 108px;[^}]*padding: 20px 0;/s);
 assert.match(source, /\.page-tab \.con li \{ width: 66px; height: 68px; flex: 0 0 66px; \}/);
 assert.match(source, /#primaryPageTab \.round \{[^}]*width: 36px;[^}]*height: 36px;[^}]*margin-bottom: 4px;/s);
+assert.match(source, /#primaryPageTab \.dynamic-update__avatar \{[^}]*width: 100%;[^}]*height: 100%;[^}]*object-fit: cover;/s);
+assert.match(source, /const applyDynamicMenuAvatar = \(node, data\) =>/);
+assert.match(source, /applyDynamicBadge\(view\.triggerBadge, data\.count\);\s*applyDynamicMenuAvatar\(view\.primaryMenuEntrance, data\);/);
+assert.match(source, /addListenerWithCleanup\(link, "click", \(\) => clearDynamicMenuAvatar\(update\)/);
 assert.match(source, /\.page-tab \.con li > a \{[^}]*display: flex;[^}]*height: 68px;[^}]*flex-direction: column;[^}]*align-items: center;[^}]*justify-content: center;[^}]*color: #505050;[^}]*font-size: 14px;/s);
 assert.doesNotMatch(source, /\.page-tab \.con li > a \{[^}]*display: inline-block;/s);
 assert.match(source, /#primaryPageTab \.page-link > span \{[^}]*display: block;[^}]*width: 100%;[^}]*height: 20px;[^}]*flex: 0 0 20px;[^}]*line-height: 20px;[^}]*white-space: nowrap;/s);

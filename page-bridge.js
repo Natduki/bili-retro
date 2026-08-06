@@ -766,7 +766,13 @@
     && value.data.update_info.item.count >= 0;
   const projectDynamicSummary = (raw) => {
     if (!isDynamicSummaryEnvelope(raw)) throw new Error("schema");
-    return Object.freeze({ count: raw.data.update_info.item.count });
+    const avatar = raw.data.entrance && isPlainObject(raw.data.entrance)
+      ? normalizeLiveAssetUrl(raw.data.entrance.icon)
+      : "";
+    return Object.freeze({
+      count: raw.data.update_info.item.count,
+      avatar: avatar || null
+    });
   };
   const isCounter = (value) => typeof value === "number"
     && Number.isSafeInteger(value)
