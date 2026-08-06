@@ -2075,6 +2075,9 @@ check("R3 live nav-user-center DOM geometry and interaction contract", () => {
   assert.match(rendererSource, /\.mini-upload \{[^}]*text-decoration: none;/s);
   assert.match(rendererSource, /\.item:nth-child\(5\) \.mini-favorite,[\s\S]*\.item:nth-child\(6\) \.mini-history \{ display: block; width: 28px; height: 30px;/);
   assert.match(rendererSource, /avatar: 150,[\s\S]*vip: 300,[\s\S]*favorite: 150,[\s\S]*history: 150,[\s\S]*upload: 100,[\s\S]*message: 0,[\s\S]*dynamic: 0/);
+  assert.match(rendererSource, /\.user-panel--dynamic \{ width: 382px; height: 320px; overflow: hidden; \}/);
+  assert.match(rendererSource, /\.user-panel--dynamic iframe \{ display: block; width: 100%; height: 308px;/);
+  assert.match(rendererSource, /dynamic: \{ width: 382, height: 320, top: 11, zIndex: 2021 \}/);
   assert.match(rendererSource, /\.international-header \.nav-user-center > \.user-con\.signin > \.item:nth-child\(-n\+6\)[\s\S]*color: #fff;[\s\S]*text-shadow: 0 1px 2px rgba\(0, 0, 0, \.45\);/);
   assert.match(rendererSource, /\.header-overlay-layer > \.profile-popover > \.vp-container > \.coins \.bili-icon_dingdao_yingbi \{ color: #00a1d6; \}/);
   assert.match(rendererSource, /\.header-overlay-layer > \.profile-popover > \.vp-container > \.coins \.bili-icon_dingdao_Bbi \{ color: #f5a623; \}/);

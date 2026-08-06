@@ -1145,9 +1145,9 @@
   .user-panel--message .i-frame { min-width: 173px; min-height: 207px; padding-top: 12px; }
   .user-panel--message .i-frame a { display: block; height: 36px; padding: 0 20px; color: #212121; font-size: 14px; line-height: 36px; text-decoration: none; }
   .user-panel--message .i-frame a:hover, .user-panel--message .i-frame a:focus-visible { background: #f4f4f4; color: #212121; }
-  .user-panel--dynamic { width: 382px; height: 540px; overflow: hidden; }
-  .user-panel--dynamic .i-frame { width: 382px; height: 540px; padding-top: 12px; overflow: hidden; border-radius: 2px; }
-  .user-panel--dynamic iframe { display: block; width: 100%; height: 528px; border: 0; background: #fff; }
+  .user-panel--dynamic { width: 382px; height: 320px; overflow: hidden; }
+  .user-panel--dynamic .i-frame { width: 382px; height: 320px; padding-top: 12px; overflow: hidden; border-radius: 2px; }
+  .user-panel--dynamic iframe { display: block; width: 100%; height: 308px; border: 0; background: #fff; }
   .user-panel--favorite { width: 520px; height: 518px; }
   .user-panel--favorite .vp-container { display: flex; justify-content: space-between; min-width: 520px; height: 518px; }
   .user-panel--favorite .tabs-panel { flex-shrink: 0; width: 149px; height: 100%; box-sizing: border-box; padding: 12px 0; overflow-x: hidden; overflow-y: auto; border-right: 1px solid #e7e7e7; }
@@ -1836,11 +1836,11 @@
   .header-overlay-layer > .nav-im-new,
   .header-overlay-layer > .nav-dynamic { top: auto; left: auto; display: block; padding-top: 12px; border: 0; border-radius: 2px; background: #fff; box-shadow: 0 3px 6px rgba(0,0,0,.2); opacity: 0; pointer-events: none; visibility: hidden; transition: opacity .16s ease, visibility 0s linear .16s; }
   .header-overlay-layer > .nav-im-new { width: 173px; min-width: 173px; height: 207px; min-height: 207px; }
-  .header-overlay-layer > .nav-dynamic { width: 382px; height: 540px; }
+  .header-overlay-layer > .nav-dynamic { width: 382px; height: 320px; }
   .header-overlay-layer > .nav-im-new.is-popover-visible,
   .header-overlay-layer > .nav-dynamic.is-popover-visible { opacity: 1; pointer-events: auto; visibility: visible; transition-delay: 0s; }
   .nav-item-message .i-frame { position: absolute; top: 30px; left: calc(50% - 86px); display: block; width: 173px; min-width: 173px; height: 207px; min-height: 207px; padding-top: 12px; border: 0; border-radius: 2px; background: #fff; box-shadow: 0 3px 6px rgba(0,0,0,.2); opacity: 0; pointer-events: none; visibility: hidden; transition: opacity .16s ease, visibility 0s linear .16s; }
-  .nav-item-dynamic .i-frame { position: absolute; top: 30px; left: calc(50% - 191px); display: block; width: 382px; height: 540px; padding-top: 12px; border: 0; border-radius: 2px; background: #fff; box-shadow: 0 3px 6px rgba(0,0,0,.2); opacity: 0; pointer-events: none; visibility: hidden; transition: opacity .16s ease, visibility 0s linear .16s; }
+  .nav-item-dynamic .i-frame { position: absolute; top: 30px; left: calc(50% - 191px); display: block; width: 382px; height: 320px; padding-top: 12px; border: 0; border-radius: 2px; background: #fff; box-shadow: 0 3px 6px rgba(0,0,0,.2); opacity: 0; pointer-events: none; visibility: hidden; transition: opacity .16s ease, visibility 0s linear .16s; }
   .nav-item-message .i-frame.is-popover-visible, .nav-item-dynamic .i-frame.is-popover-visible { opacity: 1; pointer-events: auto; visibility: visible; transition-delay: 0s; }
   .nav-item-message .i-frame > a,
   .header-overlay-layer > .nav-im-new > a { display: flex; height: 38px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 16px; color: #212121; line-height: 38px; text-decoration: none; text-shadow: none; }
@@ -3429,7 +3429,7 @@
       manga: { width: 720, height: 266, left: -48, top: 11.5, zIndex: 2015 },
       download: { width: 387, height: 216, left: -100, top: 11, zIndex: 2017 },
       message: { width: 173, height: 207, top: 11, zIndex: 2019 },
-      dynamic: { width: 382, height: 540, top: 11, zIndex: 2021 },
+      dynamic: { width: 382, height: 320, top: 11, zIndex: 2021 },
       favorite: { width: 520, height: 518, top: 11, zIndex: 2005 },
       history: { width: 370, height: 518, top: 11, zIndex: 2007 },
       upload: { width: 380, height: 78, top: 11, zIndex: 2009 }
