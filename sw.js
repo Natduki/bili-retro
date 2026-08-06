@@ -5509,15 +5509,22 @@ const handleRuntimeMessage = (message, sender, sendResponse) => {
   }
   if (isMangaRequest(message)) {
     if (!isExactRootSender(sender)) return undefined;
-    const responseDeadline = new Promise((resolve) => setTimeout(() => resolve({
+    const timeoutResult = {
       type: "HOMEPAGE_DATA_RESULT_V1",
       requestId: message.requestId,
       generation: message.generation,
       operation: MANGA_OPERATION,
       ok: false,
       error: { kind: "TIMEOUT" }
-    }), REQUEST_TIMEOUT_MS + 1000));
-    return Promise.race([fetchMangaFloor(message), responseDeadline]);
+    };
+    const responseDeadline = new Promise((resolve) => setTimeout(
+      () => resolve(timeoutResult),
+      REQUEST_TIMEOUT_MS + 1000
+    ));
+    Promise.race([fetchMangaFloor(message), responseDeadline])
+      .then(sendResponse)
+      .catch(() => sendResponse(timeoutResult));
+    return true;
   }
   if (isAnimalCancel(message)) {
     if (isAnimalSender(sender)) cancelAnimal(message, sender);

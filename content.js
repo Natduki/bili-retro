@@ -3202,7 +3202,7 @@
     }
   };
 
-  const requestMangaFloor = (currentLifecycle, advance = false) => {
+  const requestMangaFloor = (currentLifecycle, advance = false, retryAttempt = 0) => {
     if (!isCurrentLifecycle(currentLifecycle) || !currentLifecycle.mangaFloor
       || !globalThis.ExtensionBHomepageRenderer
       || typeof globalThis.ExtensionBHomepageRenderer.setMangaFloorData !== "function") return;
@@ -3212,6 +3212,19 @@
     currentLifecycle.mangaGeneration = generation;
     const requestId = `${currentLifecycle.ownerMarker}-manga-${generation}`;
     currentLifecycle.host.setAttribute("data-extension-b-manga-state", "loading");
+    const scheduleRetry = () => {
+      if (currentLifecycle.mangaLastGood || retryAttempt >= 2 || !isCurrentLifecycle(currentLifecycle)) return false;
+      const expectedGeneration = generation;
+      currentLifecycle.host.setAttribute("data-extension-b-manga-state", "retrying");
+      currentLifecycle.host.setAttribute("data-extension-b-manga-retry", String(retryAttempt + 1));
+      const timer = window.setTimeout(() => {
+        if (!isCurrentLifecycle(currentLifecycle)
+          || currentLifecycle.mangaGeneration !== expectedGeneration) return;
+        requestMangaFloor(currentLifecycle, false, retryAttempt + 1);
+      }, 600 * (retryAttempt + 1));
+      currentLifecycle.cleanups.push(() => window.clearTimeout(timer));
+      return true;
+    };
     const handleResponse = (response) => {
       let stage = "entered";
       const mark = (value) => {
@@ -3248,6 +3261,7 @@
             currentLifecycle.mangaLastGood = response.data;
             currentLifecycle.host.setAttribute("data-extension-b-manga-state", "committed");
             currentLifecycle.host.removeAttribute("data-extension-b-manga-error");
+            currentLifecycle.host.removeAttribute("data-extension-b-manga-retry");
             mark("committed");
             return;
           }
@@ -3257,13 +3271,17 @@
             : dataValid ? "commit-rejected" : envelopeValid ? "data-invalid" : `response-invalid:${responseKeys || "none"}`;
         currentLifecycle.host.setAttribute("data-extension-b-manga-error", errorKind);
         if (currentLifecycle.mangaLastGood) globalThis.ExtensionBHomepageRenderer.setMangaFloorData(currentLifecycle.mangaFloor, currentLifecycle.mangaLastGood);
+        if (scheduleRetry()) {
+          mark(`retrying:${retryAttempt + 1}`);
+          return;
+        }
         currentLifecycle.host.setAttribute("data-extension-b-manga-state", currentLifecycle.mangaLastGood ? "last-good" : "failure");
         mark("rejected");
       } catch (error) {
         const errorName = error && typeof error.name === "string" ? error.name : "Error";
         if (currentLifecycle.host) {
           currentLifecycle.host.setAttribute("data-extension-b-manga-error", `handler-${stage}-${errorName}`);
-          currentLifecycle.host.setAttribute("data-extension-b-manga-state", currentLifecycle.mangaLastGood ? "last-good" : "failure");
+          if (!scheduleRetry()) currentLifecycle.host.setAttribute("data-extension-b-manga-state", currentLifecycle.mangaLastGood ? "last-good" : "failure");
         }
         mark(`caught:${errorName}`);
       }
