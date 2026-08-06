@@ -612,6 +612,31 @@
       && parsed.hash === ""
       && parsed.pathname.startsWith("/bfs/face/");
   };
+  const normalizeAuthPendantUrl = (value) => {
+    if (value === "") return "";
+    if (!hasNoControlChars(value, 2048)) return null;
+    const normalized = value.startsWith("//") ? `https:${value}` : value;
+    let parsed;
+    try { parsed = new URL(normalized); } catch { return null; }
+    if (parsed.protocol !== "https:"
+      || !["i0.hdslb.com", "i1.hdslb.com", "i2.hdslb.com", "i3.hdslb.com"].includes(parsed.hostname)
+      || parsed.username !== ""
+      || parsed.password !== ""
+      || parsed.port !== ""
+      || parsed.search !== ""
+      || parsed.hash !== ""
+      || !parsed.pathname.startsWith("/bfs/garb/item/")) return null;
+    return normalized;
+  };
+  const projectAuthPendant = (value) => {
+    if (value === undefined || value === null) return null;
+    if (!isPlainObject(value)) throw new Error("schema");
+    const image = normalizeAuthPendantUrl(value.image ?? "");
+    const imageEnhance = normalizeAuthPendantUrl(value.image_enhance ?? "");
+    const imageEnhanceFrame = normalizeAuthPendantUrl(value.image_enhance_frame ?? "");
+    if (image === null || imageEnhance === null || imageEnhanceFrame === null) throw new Error("schema");
+    return Object.freeze({ image, imageEnhance, imageEnhanceFrame });
+  };
   const isAuthMoney = (value) => typeof value === "number"
     && Number.isFinite(value)
     && value >= 0
@@ -661,6 +686,7 @@
     }
     const face = data.face.startsWith("//") ? `https:${data.face}` : data.face;
     const navigation = projectAuthNavigation(data.mid);
+    const pendant = projectAuthPendant(data.pendant);
     return Object.freeze({
       face,
       uname: data.uname,
@@ -672,6 +698,7 @@
       bcoin: projectAuthBcoin(data),
       emailVerified: data.email_verified === true || data.email_verified === 1,
       mobileVerified: data.mobile_verified === true || data.mobile_verified === 1,
+      pendant,
       ...navigation
     });
   };
@@ -2249,6 +2276,8 @@
       isSessionEnvelope,
       isAuthEnvelope,
       isAuthAvatarUrl,
+      normalizeAuthPendantUrl,
+      projectAuthPendant,
       isAuthLevelInfo,
       isAuthVerification,
       isAuthMid,

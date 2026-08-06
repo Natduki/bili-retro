@@ -1027,6 +1027,9 @@
   .popover-game { top: 47px; width: 680px; height: 260px; overflow: visible; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
   .popover-live { top: 47px; width: 528px; height: 266px; border: 0; border-radius: 0; box-shadow: none; }
   .popover-manga { top: 47px; width: 720px; height: 266px; overflow: visible; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+  .official-nav-frame { position: absolute; inset: 0; z-index: 2; overflow: hidden; background: transparent; }
+  .official-nav-frame[hidden] { display: none; }
+  .official-nav-frame iframe { display: block; width: 100%; height: 100%; border: 0; background: transparent; }
   .popover-game::after, .popover-live::after, .popover-manga::after { display: none; }
   .header-popover[data-anchor-positioned="true"] { transform: translate(0, -5px); }
   .header-popover[data-anchor-positioned="true"].is-popover-visible { transform: translate(0, 0); }
@@ -1205,10 +1208,13 @@
   .user-panel--avatar .user-panel-row { border-top: 1px solid #f4f4f4; }
   .profile-popover { width: 280px; height: 468px; overflow: visible; }
   .profile-popover-surface { display: flex; min-height: 468px; flex-direction: column; padding: 0; color: #212121; background: #fff; }
-  .profile-avatar-frame { position: relative; z-index: 1; display: flex; width: 51px; height: 51px; align-items: center; justify-content: center; margin: -25px auto 0; overflow: hidden; border-radius: 50%; background: #e5f7ff; }
+  .profile-avatar-frame { position: relative; z-index: 1; display: flex; width: 51px; height: 51px; align-items: center; justify-content: center; margin: -25px auto 0; overflow: visible; border-radius: 50%; background: #e5f7ff; }
   .profile-avatar-frame, .profile-level-link, .profile-asset, .profile-asset-action, .profile-stat { text-decoration: none; }
   .profile-avatar-frame:hover, .profile-avatar-frame:focus-visible, .profile-level-link:hover, .profile-level-link:focus-visible, .profile-asset:hover, .profile-asset:focus-visible, .profile-asset-action:hover, .profile-asset-action:focus-visible, .profile-stat:hover, .profile-stat:focus-visible { text-decoration: none; }
   .profile-avatar-image, .profile-avatar-fallback { display: block; width: 51px; height: 51px; object-fit: cover; border-radius: 50%; }
+  .profile-avatar-pendant { position: absolute; top: -38.33%; left: -38.33%; display: block; width: 176.48%; height: 176.48%; overflow: hidden; pointer-events: none; }
+  .profile-avatar-pendant[hidden] { display: none; }
+  .profile-avatar-pendant img { display: block; width: 100%; height: 100%; min-width: 100%; user-select: none; }
   .profile-nickname { height: 64px; margin: 0; padding: 14px 20px 0; color: #212121; font-size: 16px; font-weight: 600; line-height: 50px; text-align: center; }
   .profile-login-state { display: flex; min-height: 286px; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px 20px; color: #9499a0; text-align: center; }
   .profile-login-message { margin: 0; font-size: 14px; line-height: 22px; }
@@ -3820,6 +3826,9 @@
         clearCloseTimer();
         if (open) {
           positionHeaderPopover(entry);
+          if (panel.__officialNavFrame) {
+            panel.__officialNavFrame.ensure();
+          }
         }
         if (open && activeClose && activeClose !== closeImmediately) {
           activeClose();
@@ -4419,7 +4428,7 @@
   const isProfileData = (value) => value !== null
     && typeof value === "object"
     && !Array.isArray(value)
-    && Object.keys(value).sort().join("\u001F") === "bcoin\u001Fcoins\u001FcurrentExp\u001FdynamicUrl\u001FemailVerified\u001Fface\u001FfavoriteUrl\u001FfollowerUrl\u001FfollowingUrl\u001Flevel\u001FmobileVerified\u001FnextExp\u001Funame\u001FvipStatus"
+    && Object.keys(value).sort().join("\u001F") === "bcoin\u001Fcoins\u001FcurrentExp\u001FdynamicUrl\u001FemailVerified\u001Fface\u001FfavoriteUrl\u001FfollowerUrl\u001FfollowingUrl\u001Flevel\u001FmobileVerified\u001FnextExp\u001Fpendant\u001Funame\u001FvipStatus"
     && isLiveText(value.uname, 64)
     && isLiveAvatarUrl(value.face)
     && isProfileNavigationUrl(value.followingUrl, "fans/follow")
@@ -4443,6 +4452,11 @@
       && value.bcoin <= 1000000000))
     && typeof value.emailVerified === "boolean"
     && typeof value.mobileVerified === "boolean"
+    && (value.pendant === null || (typeof value.pendant === "object"
+      && !Array.isArray(value.pendant)
+      && Object.keys(value.pendant).sort().join("\u001F") === "image\u001FimageEnhance\u001FimageEnhanceFrame"
+      && [value.pendant.image, value.pendant.imageEnhance, value.pendant.imageEnhanceFrame]
+        .every((url) => url === "" || isProfilePendantUrl(url))))
     && Number.isSafeInteger(value.vipStatus)
     && value.vipStatus >= 0
     && value.vipStatus <= 2;
@@ -4450,6 +4464,20 @@
   const isProfileNavigationUrl = (value, suffix) => typeof value === "string"
     && value.length <= 256
     && new RegExp(`^https://space\\.bilibili\\.com/[1-9]\\d*/${suffix}$`).test(value);
+
+  const isProfilePendantUrl = (value) => {
+    if (!isLiveText(value, 2048)) return false;
+    let parsed;
+    try { parsed = new URL(value); } catch { return false; }
+    return parsed.protocol === "https:"
+      && ["i0.hdslb.com", "i1.hdslb.com", "i2.hdslb.com", "i3.hdslb.com"].includes(parsed.hostname)
+      && parsed.username === ""
+      && parsed.password === ""
+      && parsed.port === ""
+      && parsed.search === ""
+      && parsed.hash === ""
+      && parsed.pathname.startsWith("/bfs/garb/item/");
+  };
 
   const setProfileNavigation = (node, href, enabled) => {
     if (!node) return;
@@ -4546,6 +4574,8 @@
     if (!active) {
       view.avatarImage.removeAttribute("src");
       view.avatarImage.removeAttribute("referrerpolicy");
+      view.avatarPendant.setAttribute("hidden", "true");
+      view.avatarPendantImage.removeAttribute("src");
       if (headerView) {
         headerView.image.removeAttribute("src");
         headerView.image.removeAttribute("referrerpolicy");
@@ -4569,6 +4599,16 @@
     view.avatarImage.setAttribute("src", profile.face);
     view.avatarImage.setAttribute("referrerpolicy", "no-referrer");
     view.avatarImage.setAttribute("alt", profile.uname);
+    const pendantUrl = profile.pendant && (profile.pendant.imageEnhance || profile.pendant.image);
+    if (pendantUrl) {
+      view.avatarPendantImage.setAttribute("src", pendantUrl);
+      view.avatarPendantImage.setAttribute("referrerpolicy", "no-referrer");
+      view.avatarPendantImage.setAttribute("alt", "");
+      view.avatarPendant.removeAttribute("hidden");
+    } else {
+      view.avatarPendant.setAttribute("hidden", "true");
+      view.avatarPendantImage.removeAttribute("src");
+    }
     if (headerView) {
       headerView.image.setAttribute("src", profile.face);
       headerView.image.setAttribute("referrerpolicy", "no-referrer");
@@ -4922,6 +4962,68 @@
     return panel;
   };
 
+  const OFFICIAL_NAV_FRAME_SOURCES = Object.freeze({
+    game: "https://www.bilibili.com/page-proxy/game-nav.html",
+    manga: "https://manga.bilibili.com/eden/bilibili-nav-panel.html"
+  });
+  const OFFICIAL_NAV_FRAME_TIMEOUT_MS = 3500;
+  const attachOfficialNavFrame = (root, panel, kind, lifecycle) => {
+    const src = OFFICIAL_NAV_FRAME_SOURCES[kind];
+    if (!src) return null;
+    const fallbackSurface = panel.children[0] || null;
+    const frameWrap = createNode(root, "div", "official-nav-frame");
+    frameWrap.setAttribute("hidden", "true");
+    const frame = root.ownerDocument.createElement("iframe");
+    frame.setAttribute("title", kind === "game" ? "游戏中心" : "漫画");
+    frame.setAttribute("frameborder", "0");
+    frame.setAttribute("loading", "lazy");
+    frameWrap.appendChild(frame);
+    panel.appendChild(frameWrap);
+    let started = false;
+    let settled = false;
+    let timeoutId = null;
+    const clearTimeout = () => {
+      if (timeoutId === null) return;
+      const view = root.ownerDocument.defaultView || globalThis;
+      view.clearTimeout(timeoutId);
+      timeoutId = null;
+    };
+    const fail = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout();
+      frameWrap.setAttribute("hidden", "true");
+      if (fallbackSurface) fallbackSurface.removeAttribute("hidden");
+      panel.setAttribute("data-official-nav-state", "fallback");
+    };
+    const commit = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout();
+      if (fallbackSurface) fallbackSurface.setAttribute("hidden", "true");
+      frameWrap.removeAttribute("hidden");
+      panel.setAttribute("data-official-nav-state", "official");
+    };
+    frame.addEventListener("load", commit, { once: true });
+    frame.addEventListener("error", fail, { once: true });
+    const ensure = () => {
+      if (started) return;
+      started = true;
+      panel.setAttribute("data-official-nav-state", "loading");
+      frame.setAttribute("src", src);
+      const view = root.ownerDocument.defaultView || globalThis;
+      timeoutId = view.setTimeout(fail, OFFICIAL_NAV_FRAME_TIMEOUT_MS);
+    };
+    if (lifecycle && Array.isArray(lifecycle.cleanups)) {
+      lifecycle.cleanups.push(() => {
+        clearTimeout();
+        frame.removeAttribute("src");
+      });
+    }
+    panel.__officialNavFrame = Object.freeze({ ensure, frame, frameWrap, fallbackSurface, src });
+    return panel.__officialNavFrame;
+  };
+
   const createMiniPopoverMediaFence = (root, lifecycle) => {
     const cleanups = [];
     const lease = lifecycle && lifecycle.lease ? lifecycle.lease : { active: true };
@@ -5210,6 +5312,7 @@
     box.appendChild(right);
     box.appendChild(preview);
     panel.appendChild(box);
+    attachOfficialNavFrame(root, panel, "game", lifecycle);
     return panel;
   };
 
@@ -5402,6 +5505,7 @@
     app.appendChild(divider);
     app.appendChild(popularity);
     panel.appendChild(app);
+    attachOfficialNavFrame(root, panel, "manga", lifecycle);
     return panel;
   };
 
@@ -5632,9 +5736,16 @@
     avatarImage.setAttribute("alt", "");
     avatarImage.setAttribute("hidden", "true");
     avatarImage.setAttribute("referrerpolicy", "no-referrer");
+    const avatarPendant = createNode(root, "span", "profile-avatar-pendant");
+    avatarPendant.setAttribute("hidden", "true");
+    const avatarPendantImage = root.ownerDocument.createElement("img");
+    avatarPendantImage.setAttribute("alt", "");
+    avatarPendantImage.setAttribute("referrerpolicy", "no-referrer");
+    avatarPendant.appendChild(avatarPendantImage);
     const avatarFallback = createSvgIcon(root, "bili-douga", 51, "profile-avatar-fallback");
     avatarFrame.appendChild(avatarImage);
     avatarFrame.appendChild(avatarFallback);
+    avatarFrame.appendChild(avatarPendant);
     bigAvatarContainer.appendChild(avatarFrame);
     surface.appendChild(bigAvatarContainer);
 
@@ -5747,6 +5858,8 @@
     panel.appendChild(container);
     panel.__profileView = Object.freeze({
       avatarImage,
+      avatarPendant,
+      avatarPendantImage,
       avatarFallback,
       nickname,
       loginState,

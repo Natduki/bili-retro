@@ -4,8 +4,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const ROOT = path.resolve(__dirname, "..", "..");
-const RENDERER_PATH = path.join(ROOT, "extension-b", "homepage-renderer.js");
+const ROOT = path.resolve(__dirname, "..");
+const RENDERER_PATH = path.join(ROOT, "homepage-renderer.js");
 const rendererSource = fs.readFileSync(RENDERER_PATH, "utf8");
 
 const assert = (condition, label) => {

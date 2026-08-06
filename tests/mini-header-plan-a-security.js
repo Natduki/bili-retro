@@ -6,11 +6,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const ROOT = path.resolve(__dirname, "..", "..");
-const RENDERER_PATH = path.join(ROOT, "extension-b", "homepage-renderer.js");
-const MANIFEST_PATH = path.join(ROOT, "extension-b", "manifest.json");
+const ROOT = path.resolve(__dirname, "..");
+const RENDERER_PATH = path.join(ROOT, "homepage-renderer.js");
+const MANIFEST_PATH = path.join(ROOT, "manifest.json");
 const rendererSource = fs.readFileSync(RENDERER_PATH, "utf8");
-const DOWNLOAD_ASSET_DIR = path.join(ROOT, "extension-b", "assets", "homepage", "mini-header-popovers", "download");
+const DOWNLOAD_ASSET_DIR = path.join(ROOT, "assets", "homepage", "mini-header-popovers", "download");
 const DOWNLOAD_QR_PATH = path.join(DOWNLOAD_ASSET_DIR, "client-download-qr.png");
 const DOWNLOAD_PINK_PATH = path.join(DOWNLOAD_ASSET_DIR, "pink-download.svg");
 const DOWNLOAD_QR_KEY = "assets/homepage/mini-header-popovers/download/client-download-qr.png";
@@ -20,7 +20,7 @@ const SEARCH_MARK_KEYS = [
   "assets/homepage/search/mark-anniversary.png"
 ];
 const FIXTURE_COVER_PHOTO_KEY = "assets/homepage/fixture-covers/photo.png";
-const FIXTURE_COVER_PHOTO_PATH = path.join(ROOT, "extension-b", "assets", "homepage", "fixture-covers", "photo.png");
+const FIXTURE_COVER_PHOTO_PATH = path.join(ROOT, "assets", "homepage", "fixture-covers", "photo.png");
 const MANIFEST_BASELINE_RESOURCES_SHA256 = "36A061A62C968C22AF3DE54E779BD9210F3453CDA97DAAC94BE26228CE7B0349";
 const MANIFEST_BASELINE_SHA256 = "CF6C1165CC651F12B3722D58260F95F536E8BFEFE89B15A6933AC3E9271B1B9B";
 const MOBILE_TITLE_ICON_D = "M11.2 1.00012H8H4.80003C3.56489 1.00012 2.56006 2.00495 2.56006 3.24009V12.7599C2.56006 13.9951 3.56489 14.9999 4.80003 14.9999H11.2C12.4351 14.9999 13.4399 13.9951 13.4399 12.7599V3.24009C13.4399 2.71073 12.4351 2.28011 11.2 2.28011H4.80003C4.27067 2.28011 3.84006 2.71073 3.84006 3.24009V12.76C3.84006 13.2893 4.27067 13.7199 4.80003 13.7199H11.2C11.7293 13.7199 12.1599 13.2893 12.1599 12.76V3.24009C12.1599 2.71073 11.7293 2.28011 11.2 2.28011ZM5.91992 3.7201C5.91992 3.36664 6.20646 3.08011 6.55991 3.08011H9.43987C9.79333 3.08011 10.0799 3.36664 10.0799 3.7201C10.0799 4.07356 9.79333 4.36009 9.43987 4.36009H6.55991C6.20646 4.36009 5.91992 4.07356 5.91992 3.7201ZM7.26109 12.4261C7.22089 12.329 7.2002 12.225 7.2002 12.12C7.2002 11.9078 7.28448 11.7043 7.4345 11.5543C7.58453 11.4043 7.78801 11.32 8.00018 11.32C8.21235 11.32 8.41582 11.4043 8.56585 11.5543C8.71588 11.7043 8.80016 11.9078 8.80016 12.12C8.80016 12.225 8.77947 12.329 8.73926 12.4261C8.69906 12.5232 8.64014 12.6114 8.56585 12.6856C8.49157 12.7599 8.40338 12.8189 8.30632 12.8591C8.20926 12.8993 8.10523 12.92 8.00018 12.92C7.89512 12.92 7.7911 12.8993 7.69404 12.8591C7.59698 12.8189 7.50879 12.7599 7.4345 12.6856C7.36022 12.6114 7.30129 12.5232 7.26109 12.4261Z";
@@ -307,7 +307,7 @@ check("runtime SHELL_CSS ends with visible b-wrap popover stacking contract", ()
   const shellCssEnd = rendererSource.indexOf("`;", shellCssStart);
   assert.ok(shellCssStart >= "const SHELL_CSS = `".length, "SHELL_CSS source is present");
   assert.ok(shellCssEnd > shellCssStart, "SHELL_CSS source has a closing delimiter");
-  const shellCss = rendererSource.slice(shellCssStart, shellCssEnd);
+  const shellCss = rendererSource.slice(shellCssStart, shellCssEnd).replace(/\r\n/g, "\n");
   assert.match(shellCss, /(?:^|\n)  \.homepage \{ overflow: visible; background: rgb\(255, 255, 255\); \}\n  main\.container \{ width: 100%; max-width: none; min-width: 0; margin: 0; background: rgb\(255, 255, 255\); \}\n  \.primary-menu-wrap \{ position: relative; z-index: 100; overflow: visible; border-bottom: 0; \}\n  \.primary-menu-itnl \{ overflow: visible; \}\n  \.primary-menu-itnl \.van-popper-channel \{ z-index: 2028; \}\n  \.first-screen \{ position: relative; z-index: 0; \}/,
     "final runtime homepage/menu/first-screen rules keep channel popovers visible");
 });
@@ -540,8 +540,8 @@ check("DOM and transport sink denylist", () => {
   ]) {
     assert.equal(pattern.test(rendererSource), false, `forbidden source match ${pattern}`);
   }
-  const contentSource = fs.readFileSync(path.join(ROOT, "extension-b", "content.js"), "utf8");
-  assert.equal((rendererSource.match(/createElement\("iframe"\)/g) || []).length, 1);
+  const contentSource = fs.readFileSync(path.join(ROOT, "content.js"), "utf8");
+  assert.equal((rendererSource.match(/createElement\("iframe"\)/g) || []).length, 2);
   assert.match(rendererSource, /setAttribute\("src", "https:\/\/t\.bilibili\.com\/pages\/nav\/index_new"\)/);
   assert.match(contentSource, /attachShadow\(\{ mode: "closed" \}\)/);
   assert.match(rendererSource, /createElementNS/);
@@ -609,14 +609,14 @@ check("manifest permission and exact WAR boundary", () => {
     "rank-hover-c62668e300b5212fe5504f6fa9b4b5c630f8ebeb.jpg@320w",
     "rank-hover-789aa94f8752ddf0346445ae31303deb3209b732.png@320w",
     "rank-hover-b8eca33b94c324bcaa0dda202a39f2d9d162c587.png@320w"
-  ]) assert.equal(fs.existsSync(path.join(ROOT, "extension-b", "assets", "homepage", "mini-header-popovers", "manga", required)), true, required);
+  ]) assert.equal(fs.existsSync(path.join(ROOT, "assets", "homepage", "mini-header-popovers", "manga", required)), true, required);
   const downloadResources = resources.filter((value) => value.startsWith("assets/homepage/mini-header-popovers/download/"));
   assert.deepEqual(downloadResources, [DOWNLOAD_QR_KEY, DOWNLOAD_PINK_KEY]);
   assert.equal(resources.filter((value) => value === DOWNLOAD_QR_KEY).length, 1);
   assert.equal(resources.filter((value) => value === DOWNLOAD_PINK_KEY).length, 1);
   assert.deepEqual(resources.filter((value) => value.startsWith("assets/homepage/search/")), SEARCH_MARK_KEYS);
   for (const key of SEARCH_MARK_KEYS) {
-    assert.equal(fs.existsSync(path.join(ROOT, "extension-b", key)), true, key);
+    assert.equal(fs.existsSync(path.join(ROOT, key)), true, key);
   }
   const baselineManifest = JSON.parse(JSON.stringify(manifest));
   delete baselineManifest.permissions;
@@ -643,7 +643,7 @@ check("manifest permission and exact WAR boundary", () => {
   ];
   for (const [index, warPath] of r5War.entries()) {
     const fileName = warPath.split("/").pop();
-    const filePath = path.join(ROOT, "extension-b", "assets", "homepage", "mini-header-popovers", "manga", fileName);
+    const filePath = path.join(ROOT, "assets", "homepage", "mini-header-popovers", "manga", fileName);
     assert.equal(fs.existsSync(filePath), true, fileName);
     assert.equal(crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex").toUpperCase(), r5Hashes[index], fileName);
   }
@@ -1074,6 +1074,11 @@ check("profile popover uses controlled auth projection and measured structure", 
     bcoin: 12.5,
     emailVerified: true,
     mobileVerified: false,
+    pendant: {
+      image: "https://i0.hdslb.com/bfs/garb/item/pendant.png",
+      imageEnhance: "https://i1.hdslb.com/bfs/garb/item/pendant-enhanced.png",
+      imageEnhanceFrame: ""
+    },
     followingUrl: "https://space.bilibili.com/123456/fans/follow",
     followerUrl: "https://space.bilibili.com/123456/fans/fans",
     dynamicUrl: "https://space.bilibili.com/123456/dynamic",
@@ -1111,6 +1116,8 @@ check("profile popover uses controlled auth projection and measured structure", 
   assert.equal(profileMenuRows["退出"].getAttribute("aria-disabled"), null);
   assert.equal(profilePanel.__profileView.avatarImage.getAttribute("src"), profile.face);
   assert.equal(profilePanel.__profileView.avatarImage.getAttribute("referrerpolicy"), "no-referrer");
+  assert.equal(profilePanel.__profileView.avatarPendantImage.getAttribute("src"), profile.pendant.imageEnhance);
+  assert.equal(profilePanel.__profileView.avatarPendant.getAttribute("hidden"), null);
   const avatarLink = findNodesByClass(profilePanel, "profile-avatar-frame")[0];
   assert.deepEqual([avatarLink.getAttribute("href"), avatarLink.getAttribute("target"), avatarLink.getAttribute("rel")], [
     "https://space.bilibili.com/", "_blank", "noopener noreferrer"
@@ -1154,6 +1161,8 @@ check("profile popover uses controlled auth projection and measured structure", 
   assert.equal(favoriteTrigger.getAttribute("href"), null);
   assert.equal(favoriteTrigger.getAttribute("aria-disabled"), "true");
   assert.equal(profilePanel.__profileView.avatarImage.getAttribute("src"), null);
+  assert.equal(profilePanel.__profileView.avatarPendantImage.getAttribute("src"), null);
+  assert.equal(profilePanel.__profileView.avatarPendant.getAttribute("hidden"), "true");
   assert.equal(profilePanel.__profileView.nickname.textContent, "请登录后查看个人资料");
   assert.equal(profilePanel.__profileView.loginMessage.textContent, "请登录后查看个人资料");
   assert.equal(profilePanel.__profileView.loginButton.getAttribute("hidden"), null);
@@ -1199,7 +1208,7 @@ check("14 popover inventory, ARIA, auth states and lifecycle", () => {
   for (const entry of header.popoverGroups) {
     if (entry.panel.getAttribute("data-popover-kind") === "search") entry.trigger.dispatch("click", { button: 0 });
     else entry.group.dispatch("mouseenter");
-    if (entry.panel.getAttribute("aria-hidden") === "true") {
+    for (let attempts = 0; entry.panel.getAttribute("aria-hidden") === "true" && attempts < 3; attempts += 1) {
       assert.equal(document.runNextTimer(), true, `${entry.panel.getAttribute("data-popover-kind")} has a scheduled open`);
     }
     assert.equal(entry.panel.getAttribute("aria-hidden"), "false");
@@ -1646,7 +1655,9 @@ check("game reducer hover/focus/keyboard/Escape and unique active", () => {
   assert.deepEqual([box.getAttribute("class"), left.getAttribute("class"), right.getAttribute("class"), preview.getAttribute("class")], [
     "box clearfix", "left", "right", "imgdiv"
   ]);
-  assert.equal(panel.children.length, 1);
+  assert.equal(panel.children.length, 2);
+  assert.equal(panel.children[1].getAttribute("class"), "official-nav-frame");
+  assert.equal(panel.children[1].getAttribute("hidden"), "true");
   assert.equal(box.children.length, 3);
   assert.deepEqual(box.children, [left, right, preview]);
   assert.equal(preview.parentNode, box);
@@ -1750,7 +1761,9 @@ check("manga reducer uses six local ordered previews", () => {
   assert.deepEqual([app.getAttribute("class"), recommendations.getAttribute("class"), divider.getAttribute("class"), popularity.getAttribute("class")], [
     "manga-app-layout", "manga-recommendation-list", "manga-divider", "manga-popularity-list"
   ]);
-  assert.equal(panel.children.length, 1);
+  assert.equal(panel.children.length, 2);
+  assert.equal(panel.children[1].getAttribute("class"), "official-nav-frame");
+  assert.equal(panel.children[1].getAttribute("hidden"), "true");
   assert.equal(app.children.length, 3);
   const cards = findNodesByClass(panel, "manga-recommend-item");
   const recommendationImages = findNodesByClass(panel, "manga-recommend-image");

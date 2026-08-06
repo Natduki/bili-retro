@@ -3,11 +3,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const ROOT = path.resolve(__dirname, "..", "..");
-const bridgePath = path.join(ROOT, "extension-b", "page-bridge.js");
-const contentPath = path.join(ROOT, "extension-b", "content.js");
-const rendererPath = path.join(ROOT, "extension-b", "homepage-renderer.js");
-const manifestPath = path.join(ROOT, "extension-b", "manifest.json");
+const ROOT = path.resolve(__dirname, "..");
+const bridgePath = path.join(ROOT, "page-bridge.js");
+const contentPath = path.join(ROOT, "content.js");
+const rendererPath = path.join(ROOT, "homepage-renderer.js");
+const manifestPath = path.join(ROOT, "manifest.json");
 const bridgeSource = fs.readFileSync(bridgePath, "utf8");
 const contentSource = fs.readFileSync(contentPath, "utf8");
 const rendererSource = fs.readFileSync(rendererPath, "utf8");
@@ -245,6 +245,11 @@ const validAuthData = inBridgeRealm(`({
   money: 906.4,
   vipStatus: 1,
   wallet: { bcoin_balance: 12.5 },
+  pendant: {
+    image: "//i0.hdslb.com/bfs/garb/item/pendant.png",
+    image_enhance: "//i1.hdslb.com/bfs/garb/item/pendant-enhanced.png",
+    image_enhance_frame: ""
+  },
   email_verified: 1,
   mobile_verified: false,
   token: "must-not-leak",
@@ -365,13 +370,18 @@ assert.deepEqual(toLocal(projectedAuth.profile), {
   bcoin: 12.5,
   emailVerified: true,
   mobileVerified: false,
+  pendant: {
+    image: "https://i0.hdslb.com/bfs/garb/item/pendant.png",
+    imageEnhance: "https://i1.hdslb.com/bfs/garb/item/pendant-enhanced.png",
+    imageEnhanceFrame: ""
+  },
   followingUrl: "https://space.bilibili.com/123456/fans/follow",
   followerUrl: "https://space.bilibili.com/123456/fans/fans",
   dynamicUrl: "https://space.bilibili.com/123456/dynamic",
   favoriteUrl: "https://space.bilibili.com/123456/favlist"
 });
 assert.deepEqual(Object.keys(projectedAuth.profile).sort(), [
-  "bcoin", "coins", "currentExp", "dynamicUrl", "emailVerified", "face", "favoriteUrl", "followerUrl", "followingUrl", "level", "mobileVerified", "nextExp", "uname", "vipStatus"
+  "bcoin", "coins", "currentExp", "dynamicUrl", "emailVerified", "face", "favoriteUrl", "followerUrl", "followingUrl", "level", "mobileVerified", "nextExp", "pendant", "uname", "vipStatus"
 ]);
 assert.equal(Object.prototype.hasOwnProperty.call(projectedAuth.profile, "token"), false);
 assert.equal(Object.prototype.hasOwnProperty.call(projectedAuth.profile, "mid"), false);
@@ -442,6 +452,7 @@ const validBridgeProfile = {
   bcoin: null,
   emailVerified: false,
   mobileVerified: false,
+  pendant: null,
   followingUrl: "https://space.bilibili.com/7/fans/follow",
   followerUrl: "https://space.bilibili.com/7/fans/fans",
   dynamicUrl: "https://space.bilibili.com/7/dynamic",
@@ -496,6 +507,11 @@ assert.deepEqual(toLocal(api.projectAuth(inBridgeRealm(`({ code: 0, message: "ok
   bcoin: null,
   emailVerified: false,
   mobileVerified: false,
+  pendant: {
+    image: "https://i0.hdslb.com/bfs/garb/item/pendant.png",
+    imageEnhance: "https://i1.hdslb.com/bfs/garb/item/pendant-enhanced.png",
+    imageEnhanceFrame: ""
+  },
   followingUrl: "https://space.bilibili.com/123456/fans/follow",
   followerUrl: "https://space.bilibili.com/123456/fans/fans",
   dynamicUrl: "https://space.bilibili.com/123456/dynamic",
@@ -506,6 +522,17 @@ for (const field of ["email_verified", "mobile_verified"]) {
   assert.equal(api.projectAuth(inBridgeRealm(`({ code: 0, message: "ok", ttl: 1, data: ${JSON.stringify(invalidData)} })`)).status, "unknown");
 }
 assert.equal(api.isAuthAvatarUrl(inBridgeRealm("\"//i3.hdslb.com/bfs/face/profile.webp\"")), true);
+assert.equal(api.normalizeAuthPendantUrl(inBridgeRealm("\"//i3.hdslb.com/bfs/garb/item/pendant.webp\"")), "https://i3.hdslb.com/bfs/garb/item/pendant.webp");
+for (const hostilePendantUrl of [
+  "https://evil.example/bfs/garb/item/pendant.webp",
+  "http://i0.hdslb.com/bfs/garb/item/pendant.webp",
+  "https://i0.hdslb.com/bfs/garb/item/pendant.webp?token=secret",
+  "https://i0.hdslb.com/bfs/face/pendant.webp"
+]) assert.equal(api.normalizeAuthPendantUrl(inBridgeRealm(JSON.stringify(hostilePendantUrl))), null, hostilePendantUrl);
+assert.deepEqual(toLocal(api.projectAuth(inBridgeRealm(`({ code: 0, data: ${JSON.stringify({
+  ...toLocal(validAuthData),
+  pendant: { image: "https://evil.example/bfs/garb/item/pendant.webp" }
+})} })`))), { status: "unknown", profile: null }, "invalid pendant rejects the profile payload");
 for (const hostileProfileFace of [
   "https://evil.example/bfs/face/profile.webp",
   "http://i0.hdslb.com/bfs/face/profile.webp",

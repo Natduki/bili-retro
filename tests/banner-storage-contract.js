@@ -5,7 +5,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 const { webcrypto } = require("node:crypto");
 
-const root = path.resolve(__dirname, "..", "..");
+const root = path.resolve(__dirname, "..");
 const extensionRoot = path.join(root, "extension-b");
 const modelSource = fs.readFileSync(path.join(extensionRoot, "banner-model.js"), "utf8");
 const swSource = fs.readFileSync(path.join(extensionRoot, "sw.js"), "utf8");

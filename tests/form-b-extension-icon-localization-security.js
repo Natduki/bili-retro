@@ -6,20 +6,20 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const ROOT = path.resolve(__dirname, "..", "..");
-const RENDERER_PATH = path.join(ROOT, "extension-b", "homepage-renderer.js");
-const MANIFEST_PATH = path.join(ROOT, "extension-b", "manifest.json");
+const ROOT = path.resolve(__dirname, "..");
+const RENDERER_PATH = path.join(ROOT, "homepage-renderer.js");
+const MANIFEST_PATH = path.join(ROOT, "manifest.json");
 const EXTENSION_ID = "controlledfixtureid";
 const CATEGORY_PATH = "/assets/homepage/homepage-runtime/international-home/category-symbols.svg";
 const CATEGORY_ORIGIN = `chrome-extension://${EXTENSION_ID}`;
 const CATEGORY_BASE = `${CATEGORY_ORIGIN}${CATEGORY_PATH}`;
 
 const ASSETS = [
-  ["prototype/dynamic/assets/vendor/bilibili/homepage-shared/category-symbols.svg", "extension-b/assets/homepage/homepage-runtime/international-home/category-symbols.svg", "a9e85cd5c9724820258a98e49ec49ce997889816c6876106a31a86a47acd9434"],
-  ["docs/old/www.bilibili.com2026.6.7/s1.hdslb.com/bfs/static/jinkela/international-home/assets/icon_gold.png", "extension-b/assets/homepage/homepage-runtime/international-home/icon_gold.png", "99931b4514426ac8333b70bc6c458fa43bfdaea8dca6d53c030045d8044e50fd"],
-  ["docs/old/www.bilibili.com2026.6.7/s1.hdslb.com/bfs/static/jinkela/international-home/assets/icon_silver.png", "extension-b/assets/homepage/homepage-runtime/international-home/icon_silver.png", "a5a8ad02bb877f260682efaba972bdce9a5ac36caee078adc1d401dcbd08cccc"],
-  ["docs/old/www.bilibili.com2026.6.7/s1.hdslb.com/bfs/static/jinkela/international-home/assets/bgm-nodata.png", "extension-b/assets/homepage/homepage-runtime/international-home/bgm-nodata.png", "f1b9f60208ffe5da8da9df8eba11db4cf5f33f74c9a3bf021d54c6be401fc043"],
-  ["extension-b/assets/homepage/homepage-runtime/banner/download-client.svg", "extension-b/assets/homepage/homepage-runtime/international-home/download-client.svg", "fb6e114943f924e378738b223d9ec5d67a1684b5580771ea2d7297e0664078bb"]
+  ["prototype/dynamic/assets/vendor/bilibili/homepage-shared/category-symbols.svg", "assets/homepage/homepage-runtime/international-home/category-symbols.svg", "a9e85cd5c9724820258a98e49ec49ce997889816c6876106a31a86a47acd9434"],
+  ["docs/old/www.bilibili.com2026.6.7/s1.hdslb.com/bfs/static/jinkela/international-home/assets/icon_gold.png", "assets/homepage/homepage-runtime/international-home/icon_gold.png", "99931b4514426ac8333b70bc6c458fa43bfdaea8dca6d53c030045d8044e50fd"],
+  ["docs/old/www.bilibili.com2026.6.7/s1.hdslb.com/bfs/static/jinkela/international-home/assets/icon_silver.png", "assets/homepage/homepage-runtime/international-home/icon_silver.png", "a5a8ad02bb877f260682efaba972bdce9a5ac36caee078adc1d401dcbd08cccc"],
+  ["docs/old/www.bilibili.com2026.6.7/s1.hdslb.com/bfs/static/jinkela/international-home/assets/bgm-nodata.png", "assets/homepage/homepage-runtime/international-home/bgm-nodata.png", "f1b9f60208ffe5da8da9df8eba11db4cf5f33f74c9a3bf021d54c6be401fc043"],
+  ["assets/homepage/homepage-runtime/banner/download-client.svg", "assets/homepage/homepage-runtime/international-home/download-client.svg", "fb6e114943f924e378738b223d9ec5d67a1684b5580771ea2d7297e0664078bb"]
 ];
 
 function sha256(filePath) {
@@ -91,7 +91,7 @@ function assertAssetHashesAndWar() {
     const targetPath = path.join(ROOT, target);
     assert.equal(fs.existsSync(targetPath), true, `target exists: ${target}`);
     assert.equal(sha256(targetPath), expected, `target hash: ${target}`);
-    assert.equal(resources.filter((resource) => resource === target.slice("extension-b/".length)).length, 1, `WAR exactly once: ${target}`);
+    assert.equal(resources.filter((resource) => resource === target).length, 1, `WAR exactly once: ${target}`);
   }
   assert.equal(resources.includes("assets/homepage/homepage-runtime/banner/download-client.svg"), false, "stale download target is not exposed");
   assert.deepEqual(manifest.host_permissions, [

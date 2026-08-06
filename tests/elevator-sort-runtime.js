@@ -4,9 +4,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const ROOT = path.resolve(__dirname, "..", "..");
-const RENDERER_PATH = path.join(ROOT, "extension-b", "homepage-renderer.js");
-const TEST_PATH = path.join(ROOT, "extension-b", "tests", "elevator-sort-runtime.js");
+const ROOT = path.resolve(__dirname, "..");
+const RENDERER_PATH = path.join(ROOT, "homepage-renderer.js");
+const TEST_PATH = path.join(ROOT, "tests", "elevator-sort-runtime.js");
 const rendererSource = fs.readFileSync(RENDERER_PATH, "utf8");
 const testSource = fs.readFileSync(TEST_PATH, "utf8");
 
@@ -506,7 +506,7 @@ const bindSource = rendererSource.slice(bindStart, bindEnd);
 assert(!/\b(?:document|window|view)\.addEventListener\(\s*["']pointer/.test(bindSource), "bind has no global pointer listener");
 assert(!/document\.body|\.body\.appendChild/.test(bindSource), "bind never owns helper through body");
 assert(!rendererSource.includes(forbidden[0]) && !rendererSource.includes(forbidden[1]) && !rendererSource.includes(forbidden[2]), "no persistent storage capability");
-const productionFiles = ["manifest.json", "content.js", "sw.js"].map((name) => fs.readFileSync(path.join(ROOT, "extension-b", name), "utf8"));
+const productionFiles = ["manifest.json", "content.js", "sw.js"].map((name) => fs.readFileSync(path.join(ROOT, name), "utf8"));
 assert(productionFiles.every((source) => !source.includes("elevator-sort-runtime") && !source.includes("__EXTENSION_B_ELEVATOR_LAYOUT_RUNTIME_TEST__")), "manifest/content/sw remain unrelated to test hook");
 
 console.log("elevator-sort-runtime: PASS");

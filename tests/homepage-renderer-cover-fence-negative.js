@@ -6,8 +6,8 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const vm = require("node:vm");
 
-const ROOT = path.resolve(__dirname, "..", "..");
-const RENDERER_PATH = path.join(ROOT, "extension-b", "homepage-renderer.js");
+const ROOT = path.resolve(__dirname, "..");
+const RENDERER_PATH = path.join(ROOT, "homepage-renderer.js");
 const HARNESS_PATH = path.resolve(__filename);
 const EVIDENCE_PATH = path.join(ROOT, "prototype", "dynamic", "logs", "subagents", "bili-extension-dev-security-evidence-r2-20260720.md");
 const rendererSource = fs.readFileSync(RENDERER_PATH, "utf8");

@@ -702,7 +702,7 @@
   const isBridgeAuthProfile = (value) => {
     if (value === null) return true;
     return isBridgePlainObject(value)
-      && bridgeOwnKeys(value) === "bcoin\u001Fcoins\u001FcurrentExp\u001FdynamicUrl\u001FemailVerified\u001Fface\u001FfavoriteUrl\u001FfollowerUrl\u001FfollowingUrl\u001Flevel\u001FmobileVerified\u001FnextExp\u001Funame\u001FvipStatus"
+      && bridgeOwnKeys(value) === "bcoin\u001Fcoins\u001FcurrentExp\u001FdynamicUrl\u001FemailVerified\u001Fface\u001FfavoriteUrl\u001FfollowerUrl\u001FfollowingUrl\u001Flevel\u001FmobileVerified\u001FnextExp\u001Fpendant\u001Funame\u001FvipStatus"
       && isLiveText(value.uname, 64)
       && isLiveAvatarUrl(value.face)
       && isLiveProfileNavigationUrl(value.followingUrl, "fans/follow")
@@ -726,6 +726,10 @@
         && value.bcoin <= 1000000000))
       && isBridgeBoolean(value.emailVerified)
       && isBridgeBoolean(value.mobileVerified)
+      && (value.pendant === null || (isBridgePlainObject(value.pendant)
+        && bridgeOwnKeys(value.pendant) === "image\u001FimageEnhance\u001FimageEnhanceFrame"
+        && [value.pendant.image, value.pendant.imageEnhance, value.pendant.imageEnhanceFrame]
+          .every((url) => url === "" || isLivePendantUrl(url))))
       && Number.isSafeInteger(value.vipStatus)
       && value.vipStatus >= 0
       && value.vipStatus <= 2;
@@ -750,6 +754,19 @@
       && parsed.search === ""
       && parsed.hash === ""
       && parsed.pathname.startsWith("/bfs/");
+  };
+  const isLivePendantUrl = (value) => {
+    if (!isLiveText(value, 2048)) return false;
+    let parsed;
+    try { parsed = new URL(value); } catch { return false; }
+    return parsed.protocol === "https:"
+      && ["i0.hdslb.com", "i1.hdslb.com", "i2.hdslb.com", "i3.hdslb.com"].includes(parsed.hostname)
+      && parsed.username === ""
+      && parsed.password === ""
+      && parsed.port === ""
+      && parsed.search === ""
+      && parsed.hash === ""
+      && parsed.pathname.startsWith("/bfs/garb/item/");
   };
   const isBfsCoverUrl = (value) => {
     if (!isLiveText(value, 2048)) return false;
