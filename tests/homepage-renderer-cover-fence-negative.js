@@ -36,6 +36,7 @@ class FakeNode {
     this.parentNode = null;
     this.children = [];
     this.attributes = new Map();
+    this.dataset = {};
     this.listeners = new Map();
     this.style = {};
     this.hidden = false;
@@ -122,12 +123,26 @@ class FakeNode {
     return child;
   }
 
+  remove() {
+    if (this.parentNode) this.parentNode.removeChild(this);
+  }
+
   replaceChildren(...children) {
     for (const child of this.children) child.parentNode = null;
     this.children = [];
     for (const child of children) this.appendChild(child);
     this.document.counters.writes += 1;
     this.document.counters.replaceChildren += 1;
+  }
+
+  replaceChild(replacement, oldChild) {
+    const index = this.children.indexOf(oldChild);
+    if (index < 0) throw new Error("old child is not a child of this node");
+    oldChild.parentNode = null;
+    replacement.parentNode = this;
+    this.children[index] = replacement;
+    this.document.counters.writes += 1;
+    return oldChild;
   }
 
   replaceWith(replacement) {
@@ -292,6 +307,7 @@ function loadProductionInternals() {
     createRankRow,
     createZoneFloor,
     createLiveFloor,
+    setLiveFloorRooms,
     createPromoteFloor,
     createKnowledgeCard,
     createMusicCard,
@@ -382,6 +398,18 @@ const pathAdapters = {
   live: (ctx) => {
     const floor = internals.createLiveFloor(ctx.root, ctx.fence);
     ctx.outer.appendChild(floor);
+    const view = floor.__liveFloorView;
+    internals.setLiveFloorRooms(view, { rooms: [{
+      roomId: 1,
+      title: "controlled live",
+      uname: "controlled host",
+      areaName: "controlled area",
+      cover: REMOTE_URL,
+      keyframe: REMOTE_URL,
+      face: REMOTE_URL,
+      online: 1,
+      href: "https://live.bilibili.com/1"
+    }] });
     const image = findFirstImage(floor);
     return { image, container: image.parentNode, fixture: true };
   },

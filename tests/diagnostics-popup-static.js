@@ -10,6 +10,7 @@ const popupCss = fs.readFileSync(path.join(root, "popup.css"), "utf8");
 const popupJs = fs.readFileSync(path.join(root, "popup.js"), "utf8");
 
 assert.equal(manifest.action.default_popup, "popup.html");
+assert.deepEqual(manifest.options_ui, { page: "popup.html", open_in_tab: true });
 assert.deepEqual(manifest.permissions, ["storage", "activeTab"]);
 assert.equal(manifest.permissions.includes("cookies"), false);
 assert.equal(manifest.permissions.includes("tabs"), false);
@@ -23,6 +24,7 @@ assert.match(content, /errors: Object\.freeze\(diagnosticErrors\.slice\(\)\.reve
 assert.doesNotMatch(content, /diagnostic.*(?:cookie|token|ticket|w_rid)/i);
 
 assert.match(popupHtml, /id="statusList"/);
+assert.match(popupHtml, /<title>bili-retro 控制面板<\/title>/);
 assert.match(popupHtml, /id="feedbackText"/);
 assert.match(popupHtml, /id="includeScreenshot"[^>]*checked/);
 assert.match(popupHtml, /id="exportBundleButton"/);
@@ -32,6 +34,8 @@ assert.match(popupCss, /\.green\{background:#2ac864\}/);
 assert.match(popupCss, /\.red\{background:#f24e4e\}/);
 
 assert.match(popupJs, /chrome\.tabs\.sendMessage\(activeTab\.id, \{ type:MESSAGE_TYPE \}\)/);
+assert.match(popupJs, /BANNER_HOME_TAB_GET_V1/);
+assert.match(popupJs, /isHomepageTab/);
 assert.match(popupJs, /chrome\.tabs\.captureVisibleTab/);
 assert.match(popupJs, /userDescription:feedbackText\.value\.trim\(\)/);
 assert.match(popupJs, /screenshotDataUrl:screenshot/);

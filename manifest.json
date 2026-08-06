@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "bili-retro",
   "short_name": "bili-retro",
-  "version": "0.2.64",
+  "version": "0.2.66",
   "description": "Exact-root legacy homepage fixture shell.",
   "icons": {
     "16": "assets/icons/bili-retro-16.png",
@@ -20,6 +20,10 @@
       "128": "assets/icons/bili-retro-128.png"
     }
   },
+  "options_ui": {
+    "page": "popup.html",
+    "open_in_tab": true
+  },
   "permissions": [
     "storage",
     "activeTab"
@@ -36,6 +40,7 @@
         "https://www.bilibili.com/index.html"
       ],
       "js": [
+        "banner-model.js",
         "homepage-renderer.js",
         "content.js"
       ],

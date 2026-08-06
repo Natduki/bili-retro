@@ -28,7 +28,7 @@ assert.match(renderer, /resolveReadCoverUrl\(item\.cover\) === item\.cover/);
 assert.match(content, /const READ_FLOOR_OPERATION = "READ_FLOOR"/);
 assert.match(content, /requestReadFloor\(currentLifecycle, false\)/);
 assert.match(content, /onReadFloorRequest: \(\) => requestReadFloor\(currentLifecycle, true\)/);
-assert.match(content, /stage-11-current-ranks-r20/);
+assert.match(content, /stage-11-banner-import-r21/);
 assert.match(content, /readFloorRetryAttempted = false/);
 assert.match(content, /const scheduleInitialRetry = \(\) =>/);
 assert.match(content, /requestReadFloor\(currentLifecycle, false\);\s*\}, 800\)/);

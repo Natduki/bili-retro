@@ -13,7 +13,7 @@ const contentSource = fs.readFileSync(contentPath, "utf8");
 const rendererSource = fs.readFileSync(rendererPath, "utf8");
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 
-assert.match(contentSource, /const BUILD_MARKER = "stage-11-current-ranks-r20";/);
+assert.match(contentSource, /const BUILD_MARKER = "stage-11-banner-import-r21";/);
 assert.doesNotMatch(contentSource, /stage-6-visual-parity-r4/);
 assert.match(contentSource, /host\.setAttribute\("data-extension-b-build", BUILD_MARKER\)/);
 const historyValidatorStart = contentSource.indexOf("  const isHistoryData =");
@@ -288,6 +288,7 @@ assert.deepEqual([...api.OPERATIONS], [
   "HISTORY_SUMMARY",
   "LIVE_HOVER",
   "PRIMARY_MENU_COUNTS",
+  "BANNER_CURRENT",
   "RECOMMENDATION_FEED",
   "DOUGA_FLOOR",
   "ORDINARY_ZONE_FLOOR",
@@ -2023,7 +2024,7 @@ for (const invalid of [
   assert.match(contentSource, /currentLifecycle\.summaryPanels = rendered\.summaryPanels/);
   assert.match(contentSource, /currentLifecycle\.profileGroup = rendered\.profileGroup/);
   assert.match(contentSource, /currentLifecycle\.logoutButton = rendered\.logoutButton/);
-assert.match(contentSource, /const BUILD_MARKER = "stage-11-current-ranks-r20"/);
+assert.match(contentSource, /const BUILD_MARKER = "stage-11-banner-import-r21"/);
   assert.match(contentSource, /data-extension-b-auth-state/);
   assert.match(contentSource, /hostBindingsBound/);
   assert.match(contentSource, /host\.isConnected !== true/);

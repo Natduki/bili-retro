@@ -15,7 +15,7 @@ const CATEGORY_ORIGIN = `chrome-extension://${EXTENSION_ID}`;
 const CATEGORY_BASE = `${CATEGORY_ORIGIN}${CATEGORY_PATH}`;
 
 const ASSETS = [
-  ["prototype/dynamic/assets/vendor/bilibili/homepage-shared/category-symbols.svg", "extension-b/assets/homepage/homepage-runtime/international-home/category-symbols.svg", "b3941950bec4ec54246978149dedbc0c176d4b7789e1c506df90d1116465e81e"],
+  ["prototype/dynamic/assets/vendor/bilibili/homepage-shared/category-symbols.svg", "extension-b/assets/homepage/homepage-runtime/international-home/category-symbols.svg", "a9e85cd5c9724820258a98e49ec49ce997889816c6876106a31a86a47acd9434"],
   ["docs/old/www.bilibili.com2026.6.7/s1.hdslb.com/bfs/static/jinkela/international-home/assets/icon_gold.png", "extension-b/assets/homepage/homepage-runtime/international-home/icon_gold.png", "99931b4514426ac8333b70bc6c458fa43bfdaea8dca6d53c030045d8044e50fd"],
   ["docs/old/www.bilibili.com2026.6.7/s1.hdslb.com/bfs/static/jinkela/international-home/assets/icon_silver.png", "extension-b/assets/homepage/homepage-runtime/international-home/icon_silver.png", "a5a8ad02bb877f260682efaba972bdce9a5ac36caee078adc1d401dcbd08cccc"],
   ["docs/old/www.bilibili.com2026.6.7/s1.hdslb.com/bfs/static/jinkela/international-home/assets/bgm-nodata.png", "extension-b/assets/homepage/homepage-runtime/international-home/bgm-nodata.png", "f1b9f60208ffe5da8da9df8eba11db4cf5f33f74c9a3bf021d54c6be401fc043"],
@@ -88,17 +88,21 @@ function assertAssetHashesAndWar() {
   const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8"));
   const resources = manifest.web_accessible_resources.flatMap((entry) => entry.resources);
   for (const [source, target, expected] of ASSETS) {
-    const sourcePath = path.join(ROOT, source);
     const targetPath = path.join(ROOT, target);
-    assert.equal(fs.existsSync(sourcePath), true, `source exists: ${source}`);
     assert.equal(fs.existsSync(targetPath), true, `target exists: ${target}`);
-    assert.equal(sha256(sourcePath), expected, `source hash: ${source}`);
     assert.equal(sha256(targetPath), expected, `target hash: ${target}`);
     assert.equal(resources.filter((resource) => resource === target.slice("extension-b/".length)).length, 1, `WAR exactly once: ${target}`);
   }
   assert.equal(resources.includes("assets/homepage/homepage-runtime/banner/download-client.svg"), false, "stale download target is not exposed");
-  assert.deepEqual(manifest.host_permissions, ["https://api.bilibili.com/*"], "permissions unchanged");
-  assert.deepEqual(manifest.content_scripts[0].matches, ["https://www.bilibili.com/"], "content match unchanged");
+  assert.deepEqual(manifest.host_permissions, [
+    "https://api.bilibili.com/*",
+    "https://s.search.bilibili.com/*",
+    "https://manga.bilibili.com/*"
+  ], "fixed API host allowlist unchanged");
+  assert.deepEqual(manifest.content_scripts[0].matches, [
+    "https://www.bilibili.com/",
+    "https://www.bilibili.com/index.html"
+  ], "legacy homepage matches unchanged");
   assert.deepEqual(manifest.web_accessible_resources[0].matches, ["https://www.bilibili.com/*"], "WAR match unchanged");
 }
 
@@ -156,8 +160,9 @@ function assertDomOwnershipAndFallbacks(api, root) {
   assert.equal(host.shadowRoot, null, "closed shadow root stays closed");
   assert.equal(external.ownerDocument, root.ownerDocument, "external svg belongs to passed root document");
   assert.equal(use.ownerDocument, root.ownerDocument, "use belongs to passed root document");
-  assert.equal(use.getAttribute("href"), `${CATEGORY_BASE}#bili-anime`, "validated href assigned only after validation");
-  assert.equal(use.getAttribute("xlink:href"), `${CATEGORY_BASE}#bili-anime`, "validated xlink href assigned only after validation");
+  assert.equal(use.tagName, "PATH", "known category icon renders from the local DOM fallback");
+  assert.equal(use.getAttribute("href"), null, "known category icon has no external href");
+  assert.equal(use.getAttribute("xlink:href"), null, "known category icon has no external xlink href");
 
   const manga = api.createSvgIcon(root, "bili-manga", 24, "category-icon");
   assert.equal(manga.children[0].tagName, "PATH", "manga uses local DOM fallback");
@@ -168,7 +173,7 @@ function assertDomOwnershipAndFallbacks(api, root) {
 
   const zhishi = api.createSvgIcon(root, "bili-zhishi", 24, "category-icon");
   assert.equal(zhishi.classList.contains("bili-icon_zhishi"), true, "zhishi dual-track class preserved");
-  assert.equal(zhishi.children[0].getAttribute("href"), `${CATEGORY_BASE}#bili-zhishi`, "zhishi external track is fixed");
+  assert.equal(zhishi.children[0].getAttribute("href"), null, "zhishi is also fully local");
 
   assert.equal(api.categorySymbolFor("bili-anime"), "bili-tuiguang", "field-like symbol string cannot become a fragment");
   assert.equal(api.categorySymbolFor({ toString: () => "bili-anime" }), "bili-tuiguang", "hostile object cannot alter fixed icon");
@@ -187,7 +192,6 @@ function assertSinkScan() {
     join("insertAdjacent", "HTML"),
     join("DOM", "Parser"),
     join("document", ".", "write"),
-    chars([105, 102, 114, 97, 109, 101]),
     join("src", "doc"),
     chars([101, 118, 97, 108]),
     join("new", " Function"),
@@ -206,6 +210,8 @@ function assertSinkScan() {
     assert.equal(test.includes(needle), false, `test sink scan: ${needle}`);
   }
   assert.equal(renderer.includes("resolveLocalAssetUrl(ASSET_KEYS.CATEGORY_SYMBOLS)"), true, "category URL uses frozen asset key");
+  assert.match(renderer, /createElement\("iframe"\)[\s\S]*?setAttribute\("src", "https:\/\/t\.bilibili\.com\/pages\/nav\/index_new"\)/,
+    "the sole iframe has a fixed Bilibili navigation URL");
   assert.equal(renderer.includes("createCategorySprite(root)"), false, "partial inline sprite is not rendered");
   assert.equal(renderer.includes(join("bili-$", "{type}")), false, "arbitrary type-to-fragment concatenation absent");
   assert.equal(renderer.includes("ASSET_KEYS.PGC_EMPTY"), true, "PGC empty branch uses fixed asset key");

@@ -97,25 +97,32 @@ class FakeMedia extends FakeEventTarget {
     this.tagName = tagName;
     this.attributes = new Map();
     this.style = new FakeStyle(counters, this);
+    this.pauseCount = 0;
+    this.loadCount = 0;
   }
 
   getAttribute(name) { return this.attributes.has(name) ? this.attributes.get(name) : null; }
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
+  removeAttribute(name) { this.attributes.delete(name); }
   play() { return { catch() {} }; }
+  pause() { this.pauseCount += 1; }
+  load() { this.loadCount += 1; }
 }
 
 class FakeLayer {
-  constructor(document, counters, media, index) {
+  constructor(document, counters, media, index, layerScale = 1, motion = null) {
     this.ownerDocument = document;
     this.counters = counters;
     this.media = media;
+    this.style = new FakeStyle(counters, this);
     this.index = index;
     this.attributes = new Map([
-      ["data-scale", "1"], ["data-init-x", "0"], ["data-init-y", "0"],
+      ["data-scale", String(layerScale)], ["data-init-x", "0"], ["data-init-y", "0"],
       ["data-offset-x", index === 0 ? "100" : "0"], ["data-offset-y", "0"],
       ["data-rotate", "0"], ["data-blur", index === 1 ? "1" : "0"],
       ["data-opacity", index === 2 ? "0.5" : "1"]
     ]);
+    if (motion) this.attributes.set("data-motion", JSON.stringify(motion));
   }
 
   querySelector(selector) { return selector === "img, video" ? this.media : null; }
@@ -199,11 +206,11 @@ const cleanupAll = (cleanups) => {
 };
 
 const transformX = (media) => {
-  const match = /^translate3d\(([-+0-9.]+)px,/.exec(media.style.transform);
+  const match = /^translate\(([-+0-9.]+)px,\s*/.exec(media.style.transform);
   return match ? Number(match[1]) : Number.NaN;
 };
 
-const createEnvironment = (width = 1000) => {
+const createEnvironment = (width = 1000, motionByIndex = null, layerScale = 1) => {
   const counters = { writes: 0, transform: 0, width: 0, height: 0, opacity: 0, filter: 0, entries: [] };
   const view = new FakeView();
   const document = new FakeDocument(view);
@@ -214,7 +221,8 @@ const createEnvironment = (width = 1000) => {
     node.setAttribute("data-width", "1920");
     node.setAttribute("data-height", "180");
     media.push(node);
-    banner.layers.push(new FakeLayer(document, counters, node, index));
+    const motion = typeof motionByIndex === "function" ? motionByIndex(index) : null;
+    banner.layers.push(new FakeLayer(document, counters, node, index, layerScale, motion));
   }
   const root = { ownerDocument: document };
   const cleanups = [];
@@ -244,6 +252,11 @@ const environment = createEnvironment();
 environment.bind(bindBannerParallax);
 assert(environment.media.length === 18, "production hook binds all 18 media layers");
 assert(/\.animated-banner > \.banner-layer-item img, \.animated-banner > \.banner-layer-item video \{[^}]*will-change: transform;[^}]*\}/s.test(rendererSource), "all banner media have stable transform promotion");
+assert(rendererSource.includes('media.addEventListener("error"'), "broken banner media is isolated per layer");
+assert(rendererSource.includes('layer.setAttribute("data-asset-state", "error")')
+  && !rendererSource.includes("const builtinFallbackLayers"), "official banner layer errors stay isolated without mixing local assets");
+assert(rendererSource.includes("naturalWidth || layer.media.videoWidth")
+  && rendererSource.includes('loadedEvent = layer.media.tagName === "VIDEO" ? "loadedmetadata" : "load"'), "loaded banner layers use intrinsic dimensions");
 assert(!/\.animated-banner > \.banner-layer-item img, \.animated-banner > \.banner-layer-item video \{[^}]*will-change: auto/s.test(rendererSource), "banner media no longer use will-change auto");
 const documentMoveListeners = environment.document.addedListeners.filter((entry) => entry.type === "pointermove");
 const documentMouseListeners = environment.document.addedListeners.filter((entry) => entry.type === "mousemove");
@@ -313,6 +326,45 @@ assert(environment.view.frames.size === 1, "new move cancels reset and schedules
 environment.view.flushOne(316);
 assert(Math.abs(transformX(environment.media[0]) - (40 / 1000) * (180 / 155) * 100) < 0.000001, "new move resumes parallax after reset cancellation");
 
+const officialMotion = {
+  scaleOffset: 0.5,
+  scaleCurve: [0, 0, 1, 1],
+  rotateOffset: 30,
+  rotateCurve: [0, 0, 1, 1],
+  translateCurve: [0, 0, 1, 1],
+  blurOffset: 2,
+  blurCurve: [0, 0, 1, 1],
+  blurWrap: "clamp",
+  opacityOffset: -0.2,
+  opacityCurve: [0, 0, 1, 1],
+  opacityWrap: "clamp"
+};
+const official = createEnvironment(1000, (index) => index < 2 ? officialMotion : null, 0.5);
+official.bind(bindBannerParallax);
+official.document.dispatch("pointermove", { target: official.banner, clientX: 500, clientY: 60 });
+official.document.dispatch("pointermove", { target: official.banner, clientX: 600, clientY: 60 });
+official.view.flushOne(16);
+const officialTransform = official.media[0].style.transform;
+assert(/^translate\([-+0-9.]+px, [-+0-9.]+px\) rotate\([-+0-9.]+deg\) scale\([1-9][0-9.]*\)$/.test(officialTransform), "official motion uses translate, rotate and scale");
+assert(officialTransform.includes("scale(1.05)"), "official motion applies per-layer dynamic scale");
+assert(officialTransform.includes("rotate(3deg)"), "official motion applies per-layer dynamic rotation");
+assert(Math.abs(transformX(official.media[0]) - 100 * (180 / 155) * 0.5 * 0.1) < 0.000001, "official translate uses initial layer scale");
+assert(official.media[0].style.opacity === "0.98", "official opacity offset is applied during movement");
+assert(official.media[1].style.filter === "blur(1.2px)", "official blur offset is applied during movement");
+assert(official.media[0].style.transform !== official.media[2].style.transform, "layers without official motion retain independent legacy behavior");
+
+const palxiao = createEnvironment(1000, (index) => index === 0
+  ? { a: 0.01, g: 0.02, f: 0.0004, deg: 0.0001, opacity: [0.5, 1] }
+  : null);
+palxiao.view.innerWidth = 1920;
+palxiao.bind(bindBannerParallax);
+palxiao.document.dispatch("pointermove", { target: palxiao.banner, clientX: 500, clientY: 60 });
+palxiao.document.dispatch("pointermove", { target: palxiao.banner, clientX: 600, clientY: 60 });
+palxiao.view.flushOne(16);
+assert(palxiao.banner.layers[0].style.transform === "matrix(1.039948, 0.0104, -0.0104, 1.039948, 1, 2)", "palxiao motion uses pixel displacement on the layer wrapper");
+assert(palxiao.media[0].style.width === `${1920 * (1920 / 1650)}px`, "palxiao motion uses viewport compensation for declared width");
+assert(palxiao.media[0].style.transform === "", "palxiao motion leaves media transform untouched");
+
 environment.document.dispatch("pointerleave", { target: environment.document });
 assert(environment.view.frames.size === 1, "document pointerleave resets parallax");
 environment.view.flushOne(420);
@@ -365,6 +417,7 @@ inactive.view.dispatch("blur", {});
 assert(inactive.counters.writes === afterCleanupWrites, "inactive and late callbacks are zero-write");
 assert(inactive.banner.listenerCount() === 0 && inactive.view.listenerCount() === 0 && inactive.document.listenerCount() === 0, "cleanup removes banner/view/document listeners");
 assert(inactive.view.frames.size === 0, "late inactive events do not schedule frames");
+assert(inactive.media[17].pauseCount === 1 && inactive.media[17].loadCount === 1, "cleanup pauses and releases the video layer");
 assert(inactive.banner.removeMismatches === 0 && inactive.view.removeMismatches === 0 && inactive.document.removeMismatches === 0, "banner cleanup preserves options identity");
 assert(inactive.document.removedListeners.filter((entry) => entry.type === "pointermove").length === 1 && inactive.document.removedListeners.filter((entry) => entry.type === "mousemove").length === 1, "cleanup removes both document move listeners");
 const removedPointerMove = inactive.document.removedListeners.find((entry) => entry.type === "pointermove");

@@ -7,6 +7,15 @@ const SEARCH_TRENDING_URL = "https://api.bilibili.com/x/web-interface/wbi/search
 const SEARCH_OPERATION = "SEARCH_SUGGEST";
 const SEARCH_AUTOCOMPLETE_OPERATION = "SEARCH_AUTOCOMPLETE";
 const SEARCH_AUTOCOMPLETE_URL = "https://s.search.bilibili.com/main/suggest";
+const BANNER_SETTINGS_KEY = "biliRetroBannerSettingsV1";
+const BANNER_LAST_GOOD_KEY = "biliRetroBannerLastGoodV1";
+const BANNER_DB_NAME = "biliRetroBannerPackagesV1";
+const BANNER_DB_VERSION = 1;
+const BANNER_PACKAGE_MAX_BYTES = 24 * 1024 * 1024;
+const BANNER_ASSET_MAX_BYTES = 8 * 1024 * 1024;
+const BANNER_MAX_ASSETS = 512;
+const BANNER_ASSET_MAX_BASE64_LENGTH = Math.ceil(BANNER_ASSET_MAX_BYTES / 3) * 4;
+let lastHomepageTab = null;
 const MANGA_OPERATION = "MANGA_FLOOR";
 const MANGA_RECOMMEND_URL = "https://manga.bilibili.com/twirp/comic.v1.Comic/GetRecommendComics";
 const MANGA_FREE_URL = "https://manga.bilibili.com/twirp/comic.v1.Comic/HomeHot";
@@ -264,6 +273,248 @@ const isPlainObject = (value) => (
   && Array.isArray(value) === false
   && Object.getPrototypeOf(value) === Object.prototype
 );
+
+const BANNER_SOURCES = new Set(["official", "builtin", "imported"]);
+const BANNER_ROTATIONS = new Set(["manual", "random", "daily"]);
+const isBannerSafeRef = (value) => typeof value === "string"
+  && value.length > 0 && value.length <= 2048 && !/[\u0000-\u001F\u007F]/.test(value)
+  && !value.includes("..") && !value.includes("\\") && !value.startsWith("/")
+  && !/^(?:data|blob|javascript|file|chrome):/i.test(value);
+const isBannerCurveForStorage = (value) => Array.isArray(value) && value.length === 4
+  && Number.isFinite(value[0]) && value[0] >= 0 && value[0] <= 1
+  && Number.isFinite(value[1]) && Math.abs(value[1]) <= 100
+  && Number.isFinite(value[2]) && value[2] >= 0 && value[2] <= 1
+  && Number.isFinite(value[3]) && Math.abs(value[3]) <= 100;
+const isBannerMotionForStorage = (value) => {
+  if (!isPlainObject(value)) return false;
+  const keys = Object.keys(value).sort().join("\u001F");
+  if (keys === "a\u001Fdeg\u001Ff\u001Fg\u001Fopacity") {
+    return Number.isFinite(value.a) && Math.abs(value.a) <= 100
+      && Number.isFinite(value.g) && Math.abs(value.g) <= 100
+      && Number.isFinite(value.f) && Math.abs(value.f) <= 10
+      && Number.isFinite(value.deg) && Math.abs(value.deg) <= 10
+      && Array.isArray(value.opacity) && value.opacity.length === 2
+      && value.opacity.every((entry) => Number.isFinite(entry) && entry >= 0 && entry <= 1);
+  }
+  return keys === "blurCurve\u001FblurOffset\u001FblurWrap\u001FopacityCurve\u001FopacityOffset\u001FopacityWrap\u001FrotateCurve\u001FrotateOffset\u001FscaleCurve\u001FscaleOffset\u001FtranslateCurve"
+    && (value.scaleCurve === null || isBannerCurveForStorage(value.scaleCurve))
+    && Number.isFinite(value.scaleOffset) && Math.abs(value.scaleOffset) <= 10
+    && (value.rotateCurve === null || isBannerCurveForStorage(value.rotateCurve))
+    && Number.isFinite(value.rotateOffset) && Math.abs(value.rotateOffset) <= 360
+    && (value.translateCurve === null || isBannerCurveForStorage(value.translateCurve))
+    && (value.blurCurve === null || isBannerCurveForStorage(value.blurCurve))
+    && Number.isFinite(value.blurOffset) && Math.abs(value.blurOffset) <= 100
+    && ["", "clamp", "alternate"].includes(value.blurWrap)
+    && (value.opacityCurve === null || isBannerCurveForStorage(value.opacityCurve))
+    && Number.isFinite(value.opacityOffset) && Math.abs(value.opacityOffset) <= 1
+    && ["", "clamp", "alternate"].includes(value.opacityWrap);
+};
+const decodeBannerImportBytes = (value) => {
+  if (value instanceof ArrayBuffer) return value;
+  if (typeof value !== "string" || value.length === 0 || value.length > BANNER_ASSET_MAX_BASE64_LENGTH
+    || value.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(value)) return null;
+  try {
+    const binary = atob(value);
+    if (binary.length > BANNER_ASSET_MAX_BYTES) return null;
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return bytes.buffer;
+  } catch (_) {
+    return null;
+  }
+};
+const encodeBannerRuntimeBytes = (value) => {
+  if (!(value instanceof ArrayBuffer) || value.byteLength < 1 || value.byteLength > BANNER_ASSET_MAX_BYTES) return null;
+  const bytes = new Uint8Array(value);
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + 0x8000, bytes.length)));
+  }
+  try { return btoa(binary); } catch (_) { return null; }
+};
+const isBannerModelForStorage = (value) => {
+  if (!isPlainObject(value)
+    || Object.keys(value).sort().join("\u001F") !== "backgroundRef\u001Fcanvas\u001Fid\u001Flayers\u001FlogoRef\u001Fname\u001FschemaVersion\u001Fsource"
+    || value.schemaVersion !== 1 || !BANNER_SOURCES.has(value.source)
+    || typeof value.id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/.test(value.id)
+    || typeof value.name !== "string" || value.name.length === 0 || value.name.length > 160
+    || !isPlainObject(value.canvas) || Object.keys(value.canvas).sort().join("\u001F") !== "height\u001Fwidth"
+    || !Number.isSafeInteger(value.canvas.width) || value.canvas.width < 1 || value.canvas.width > 8192
+    || !Number.isSafeInteger(value.canvas.height) || value.canvas.height < 1 || value.canvas.height > 8192
+    || !Array.isArray(value.layers) || value.layers.length < 1
+    || (value.backgroundRef !== null && !isBannerSafeRef(value.backgroundRef))
+    || (value.logoRef !== null && !isBannerSafeRef(value.logoRef))) return false;
+  const ids = new Set();
+  return value.layers.every((layer) => {
+    if (!isPlainObject(layer)) return false;
+    const layerKeys = Object.keys(layer).sort().join("\u001F");
+    if ((layerKeys !== "assetRef\u001Fblur\u001Fheight\u001Fid\u001Foffset\u001Fopacity\u001Frotation\u001Fscale\u001Ftransform\u001Ftype\u001Fwidth"
+        && layerKeys !== "assetRef\u001Fblur\u001Fheight\u001Fid\u001Fmotion\u001Foffset\u001Fopacity\u001Frotation\u001Fscale\u001Ftransform\u001Ftype\u001Fwidth")
+      || typeof layer.id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/.test(layer.id) || ids.has(layer.id)) return false;
+    ids.add(layer.id);
+    return ["image/png", "image/jpeg", "image/webp", "video/webm"].includes(layer.type)
+      && isBannerSafeRef(layer.assetRef) && Number.isSafeInteger(layer.width) && layer.width > 0 && layer.width <= 32768
+      && Number.isSafeInteger(layer.height) && layer.height > 0 && layer.height <= 32768
+      && Array.isArray(layer.transform) && layer.transform.length === 6 && layer.transform.every((n) => Number.isFinite(n) && Math.abs(n) <= 100000)
+      && isPlainObject(layer.offset) && Object.keys(layer.offset).sort().join("\u001F") === "x\u001Fy"
+      && Number.isFinite(layer.offset.x) && Math.abs(layer.offset.x) <= 10000 && Number.isFinite(layer.offset.y) && Math.abs(layer.offset.y) <= 10000
+      && Number.isFinite(layer.scale) && layer.scale >= 0.01 && layer.scale <= 10
+      && Number.isFinite(layer.rotation) && Math.abs(layer.rotation) <= 360
+      && Number.isFinite(layer.opacity) && layer.opacity >= 0 && layer.opacity <= 1
+      && Number.isFinite(layer.blur) && layer.blur >= 0 && layer.blur <= 100
+      && (layer.motion == null || isBannerMotionForStorage(layer.motion));
+  });
+};
+const BANNER_DEFAULT_SETTINGS = Object.freeze({ source: "official", packageId: null, rotation: "manual" });
+const bannerStorageGet = (keys) => new Promise((resolve) => {
+  if (!chrome.storage || !chrome.storage.local) { resolve({}); return; }
+  chrome.storage.local.get(keys, (value) => resolve(value || {}));
+});
+const bannerStorageSet = (value) => new Promise((resolve) => {
+  if (!chrome.storage || !chrome.storage.local) { resolve(); return; }
+  chrome.storage.local.set(value, () => resolve());
+});
+const openBannerPackageDb = () => new Promise((resolve, reject) => {
+  if (typeof indexedDB === "undefined") { reject(new Error("idb")); return; }
+  const request = indexedDB.open(BANNER_DB_NAME, BANNER_DB_VERSION);
+  request.onupgradeneeded = () => {
+    if (!request.result.objectStoreNames.contains("packages")) request.result.createObjectStore("packages", { keyPath: "id" });
+  };
+  request.onsuccess = () => resolve(request.result);
+  request.onerror = () => reject(request.error || new Error("idb"));
+});
+const readBannerPackage = async (id) => {
+  const db = await openBannerPackageDb();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction("packages", "readonly").objectStore("packages").get(id);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error || new Error("idb"));
+  });
+};
+const writeBannerPackage = async (record) => {
+  const db = await openBannerPackageDb();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction("packages", "readwrite").objectStore("packages").put(record);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error || new Error("idb"));
+  });
+};
+const deleteBannerPackage = async (id) => {
+  const db = await openBannerPackageDb();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction("packages", "readwrite").objectStore("packages").delete(id);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error || new Error("idb"));
+  });
+};
+const listBannerPackages = async () => {
+  const db = await openBannerPackageDb();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction("packages", "readonly").objectStore("packages").getAll();
+    request.onsuccess = () => resolve(Array.isArray(request.result) ? request.result : []);
+    request.onerror = () => reject(request.error || new Error("idb"));
+  });
+};
+const bannerSettings = async () => {
+  const stored = await bannerStorageGet([BANNER_SETTINGS_KEY]);
+  const value = stored[BANNER_SETTINGS_KEY];
+  if (!isPlainObject(value) || !BANNER_SOURCES.has(value.source) || !BANNER_ROTATIONS.has(value.rotation)
+    || (value.packageId !== null && (typeof value.packageId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/.test(value.packageId)))) {
+    return { ...BANNER_DEFAULT_SETTINGS };
+  }
+  return { source: value.source, packageId: value.packageId, rotation: value.rotation };
+};
+const bannerPackageSummary = (record) => ({
+  id: record.id, name: record.manifest.name, version: record.manifest.version,
+  description: record.manifest.description, source: record.manifest.source,
+  author: record.manifest.author, license: record.manifest.license,
+  previewDataUrl: record.previewDataUrl, size: record.size, layers: record.model.layers.length,
+  sha256: record.sha256
+});
+const chooseBannerPackage = (packages, settings) => {
+  if (!packages.length) return null;
+  const sorted = packages.slice().sort((a, b) => a.id.localeCompare(b.id));
+  if (settings.rotation === "manual" && sorted.some((record) => record.id === settings.packageId)) return settings.packageId;
+  if (settings.rotation === "daily") {
+    const date = new Date();
+    const seed = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+    const hash = Array.from(seed).reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 7);
+    return sorted[hash % sorted.length].id;
+  }
+  const candidates = sorted.filter((record) => record.id !== settings.packageId);
+  const values = new Uint32Array(1);
+  try { crypto.getRandomValues(values); } catch (_) { values[0] = Date.now(); }
+  return (candidates.length ? candidates : sorted)[values[0] % (candidates.length || sorted.length)].id;
+};
+const bannerRuntimeResult = async () => {
+  const settings = await bannerSettings();
+  let packages = [];
+  try { packages = await listBannerPackages(); } catch (_) {}
+  let selectedId = settings.packageId;
+  if (settings.source === "imported") {
+    selectedId = chooseBannerPackage(packages, settings);
+    if (selectedId !== settings.packageId) {
+      settings.packageId = selectedId;
+      await bannerStorageSet({ [BANNER_SETTINGS_KEY]: settings });
+    }
+  }
+  let model = null;
+  let assets = [];
+  if (settings.source === "imported" && selectedId) {
+    const record = packages.find((candidate) => candidate.id === selectedId) || null;
+    if (record && isBannerModelForStorage(record.model)) {
+      model = record.model;
+      assets = Object.entries(record.assets || {}).map(([assetRef, bytes]) => ({
+        assetRef,
+        bytes: encodeBannerRuntimeBytes(bytes)
+      })).filter((entry) => typeof entry.bytes === "string");
+    }
+  }
+  const lastGoodStored = await bannerStorageGet([BANNER_LAST_GOOD_KEY]);
+  const lastGood = isBannerModelForStorage(lastGoodStored[BANNER_LAST_GOOD_KEY]) ? lastGoodStored[BANNER_LAST_GOOD_KEY] : null;
+  return {
+    type: "BANNER_RUNTIME_RESULT_V1",
+    settings: { source: settings.source, packageId: selectedId, rotation: settings.rotation },
+    model, assets, lastGood
+  };
+};
+const isBannerManifestForStorage = (manifest) => isPlainObject(manifest)
+  && Object.keys(manifest).sort().join("\u001F") === "assets\u001Fauthor\u001Fcanvas\u001Fdescription\u001Fid\u001Flayers\u001Flicense\u001Fname\u001Fpreview\u001FschemaVersion\u001Fsource\u001Fversion"
+  && manifest.schemaVersion === 1
+  && typeof manifest.id === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/.test(manifest.id)
+  && typeof manifest.name === "string" && manifest.name.length > 0 && manifest.name.length <= 160
+  && typeof manifest.version === "string" && manifest.version.length > 0 && manifest.version.length <= 32
+  && typeof manifest.description === "string" && manifest.description.length <= 1000
+  && typeof manifest.source === "string" && manifest.source.length <= 256
+  && typeof manifest.author === "string" && manifest.author.length <= 160
+  && typeof manifest.license === "string" && manifest.license.length <= 160
+  && isPlainObject(manifest.canvas) && Object.keys(manifest.canvas).sort().join("\u001F") === "height\u001Fwidth"
+  && Number.isSafeInteger(manifest.canvas.width) && Number.isSafeInteger(manifest.canvas.height)
+  && Array.isArray(manifest.layers) && manifest.layers.length > 0
+  && Array.isArray(manifest.assets) && manifest.assets.length > 0
+  && manifest.preview === "preview.webp";
+const validateBannerImportRecord = (value) => {
+  if (!isPlainObject(value) || Object.keys(value).sort().join("\u001F") !== "assets\u001Fmanifest\u001Fmodel\u001FpreviewDataUrl\u001Fsha256\u001Fsize"
+    || !isBannerManifestForStorage(value.manifest) || !isBannerModelForStorage(value.model)
+    || value.model.source !== "imported" || value.model.id !== value.manifest.id
+    || typeof value.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(value.sha256)
+    || !Number.isSafeInteger(value.size) || value.size < 1 || value.size > BANNER_PACKAGE_MAX_BYTES
+    || typeof value.previewDataUrl !== "string" || value.previewDataUrl.length > 700000 || !value.previewDataUrl.startsWith("data:image/webp;base64,")
+    || !Array.isArray(value.assets) || value.assets.length !== value.manifest.assets.length) return false;
+  const refs = new Set(value.model.layers.map((layer) => layer.assetRef));
+  const seen = new Set(); let total = 0;
+  for (const asset of value.assets) {
+    const bytes = decodeBannerImportBytes(asset && asset.bytes);
+    if (!isPlainObject(asset) || Object.keys(asset).sort().join("\u001F") !== "assetRef\u001Fbytes\u001Fmime"
+      || !refs.has(asset.assetRef) || seen.has(asset.assetRef) || !["image/png", "image/jpeg", "image/webp", "video/webm"].includes(asset.mime)
+      || !bytes || bytes.byteLength < 1 || bytes.byteLength > BANNER_ASSET_MAX_BYTES) return false;
+    seen.add(asset.assetRef); total += bytes.byteLength;
+  }
+  return seen.size === refs.size && total <= BANNER_PACKAGE_MAX_BYTES;
+};
+const bannerControlResult = (ok, error = "") => ok
+  ? { type: "BANNER_CONTROL_RESULT_V1", ok: true }
+  : { type: "BANNER_CONTROL_RESULT_V1", ok: false, error };
 
 const isJsonContentType = (value) => {
   if (typeof value !== "string") {
@@ -5186,6 +5437,76 @@ const fetchMangaFloor = async (message) => {
 };
 
 const handleRuntimeMessage = (message, sender, sendResponse) => {
+  if (isPlainObject(message) && message.type === "BANNER_HOME_TAB_GET_V1"
+    && Object.keys(message).length === 1 && sender && sender.id === chrome.runtime.id && !sender.tab) {
+    sendResponse({
+      type: "BANNER_HOME_TAB_RESULT_V1",
+      tabId: lastHomepageTab ? lastHomepageTab.tabId : null,
+      windowId: lastHomepageTab ? lastHomepageTab.windowId : null
+    });
+    return false;
+  }
+  if (isPlainObject(message) && message.type === "BANNER_RUNTIME_GET_V1"
+    && Object.keys(message).length === 1 && isExactRootSender(sender)) {
+    lastHomepageTab = {
+      tabId: sender.tab.id,
+      windowId: Number.isSafeInteger(sender.tab.windowId) ? sender.tab.windowId : null
+    };
+    bannerRuntimeResult().then(sendResponse).catch(() => sendResponse({
+      type: "BANNER_RUNTIME_RESULT_V1",
+      settings: { ...BANNER_DEFAULT_SETTINGS }, model: null, assets: [], lastGood: null
+    }));
+    return true;
+  }
+  if (isPlainObject(message) && message.type === "BANNER_LAST_GOOD_SET_V1"
+    && Object.keys(message).sort().join("\u001F") === "model\u001Ftype" && isExactRootSender(sender)) {
+    if (isBannerModelForStorage(message.model) && message.model.source === "official") {
+      bannerStorageSet({ [BANNER_LAST_GOOD_KEY]: message.model }).then(() => sendResponse(bannerControlResult(true))).catch(() => sendResponse(bannerControlResult(false, "STORAGE")));
+    } else sendResponse(bannerControlResult(false, "MODEL"));
+    return true;
+  }
+  if (isPlainObject(message) && message.type === "BANNER_PACKAGE_IMPORT_V1"
+    && Object.keys(message).sort().join("\u001F") === "package\u001Ftype" && sender && sender.id === chrome.runtime.id && !sender.tab) {
+    const value = message.package;
+    if (!validateBannerImportRecord(value)) { sendResponse(bannerControlResult(false, "PACKAGE_INVALID")); return false; }
+    const record = {
+      id: value.manifest.id, manifest: value.manifest, model: value.model,
+      previewDataUrl: value.previewDataUrl, sha256: value.sha256, size: value.size,
+      assets: Object.fromEntries(value.assets.map((asset) => [asset.assetRef, decodeBannerImportBytes(asset.bytes)]))
+    };
+    writeBannerPackage(record).then(() => sendResponse(bannerControlResult(true))).catch(() => sendResponse(bannerControlResult(false, "STORAGE")));
+    return true;
+  }
+  if (isPlainObject(message) && message.type === "BANNER_PACKAGE_DELETE_V1"
+    && Object.keys(message).sort().join("\u001F") === "id\u001Ftype" && sender && sender.id === chrome.runtime.id && !sender.tab) {
+    if (typeof message.id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/.test(message.id)) { sendResponse(bannerControlResult(false, "ID")); return false; }
+    deleteBannerPackage(message.id).then(async () => {
+      const settings = await bannerSettings();
+      if (settings.packageId === message.id) await bannerStorageSet({ [BANNER_SETTINGS_KEY]: { ...settings, source: "builtin", packageId: null } });
+      sendResponse(bannerControlResult(true));
+    }).catch(() => sendResponse(bannerControlResult(false, "STORAGE")));
+    return true;
+  }
+  if (isPlainObject(message) && message.type === "BANNER_SETTINGS_SET_V1"
+    && Object.keys(message).sort().join("\u001F") === "settings\u001Ftype" && sender && sender.id === chrome.runtime.id && !sender.tab) {
+    const value = message.settings;
+    if (!isPlainObject(value) || Object.keys(value).sort().join("\u001F") !== "packageId\u001Frotation\u001Fsource"
+      || !BANNER_SOURCES.has(value.source) || !BANNER_ROTATIONS.has(value.rotation)
+      || (value.packageId !== null && (typeof value.packageId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$/.test(value.packageId)))) {
+      sendResponse(bannerControlResult(false, "SETTINGS")); return false;
+    }
+    bannerStorageSet({ [BANNER_SETTINGS_KEY]: { source: value.source, packageId: value.packageId, rotation: value.rotation } })
+      .then(() => sendResponse(bannerControlResult(true))).catch(() => sendResponse(bannerControlResult(false, "STORAGE")));
+    return true;
+  }
+  if (isPlainObject(message) && message.type === "BANNER_STORAGE_LIST_V1"
+    && Object.keys(message).length === 1 && sender && sender.id === chrome.runtime.id && !sender.tab) {
+    Promise.all([bannerSettings(), listBannerPackages().catch(() => [])]).then(([settings, packages]) => sendResponse({
+      type: "BANNER_STORAGE_LIST_RESULT_V1", settings,
+      packages: packages.map(bannerPackageSummary)
+    })).catch(() => sendResponse({ type: "BANNER_STORAGE_LIST_RESULT_V1", settings: { ...BANNER_DEFAULT_SETTINGS }, packages: [] }));
+    return true;
+  }
   if (isMangaRequest(message)) {
     if (!isExactRootSender(sender)) return undefined;
     const responseDeadline = new Promise((resolve) => setTimeout(() => resolve({
@@ -5381,6 +5702,11 @@ if (globalThis.__EXTENSION_B_MANGA_TEST__ === true) {
 }
 
 chrome.runtime.onMessage.addListener(handleRuntimeMessage);
+if (chrome.tabs && chrome.tabs.onRemoved) {
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    if (lastHomepageTab && lastHomepageTab.tabId === tabId) lastHomepageTab = null;
+  });
+}
 
 if (globalThis.__EXTENSION_B_RUN_SELF_TESTS__ === true) {
   runPgcAnimeDeterministicSelfTests();

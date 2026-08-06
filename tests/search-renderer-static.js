@@ -84,7 +84,7 @@ assert.match(contentSource, /"committed"/);
 assert.match(contentSource, /chrome\.storage\.local\.get\(SEARCH_HISTORY_STORAGE_KEY/);
 assert.match(contentSource, /chrome\.storage\.local\.set\(\{ \[SEARCH_HISTORY_STORAGE_KEY\]/);
 assert.match(rendererSource, /view\.open\(href, "_blank", "noopener,noreferrer"\)/);
-assert.deepEqual(manifest.permissions, ["storage"]);
+assert.deepEqual(manifest.permissions, ["storage", "activeTab"]);
 const webResources = manifest.web_accessible_resources[0].resources;
 assert.deepEqual(manifest.host_permissions, ["https://api.bilibili.com/*", "https://s.search.bilibili.com/*", "https://manga.bilibili.com/*"]);
 assert.equal(webResources.includes("assets/homepage/search/mark-live.gif"), true);

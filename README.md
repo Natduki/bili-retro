@@ -2,7 +2,7 @@
 
 `bili-retro` 是一个 Chrome Manifest V3 扩展，用于在哔哩哔哩首页恢复旧版首页布局与交互。
 
-当前版本：`0.2.64`
+当前版本：`0.2.66`
 
 扩展只接管以下精确地址：
 
@@ -15,7 +15,7 @@
 
 ## 诊断控制面板
 
-点击 Chrome 工具栏中的 `bili-retro` 图标可打开诊断面板。面板每 1.5 秒读取当前首页的脱敏快照，展示接口请求和页面模块的绿色、黄色、红色、灰色状态，以及最近一次响应时间。
+点击 Chrome 工具栏中的 `bili-retro` 图标可打开控制面板；也可以在 `chrome://extensions/` 的 bili-retro 详情中点击“扩展程序选项”以标签页打开。面板每 1.5 秒读取当前首页的脱敏快照，展示接口请求和页面模块的绿色、黄色、红色、灰色状态，以及最近一次响应时间。
 
 面板提供：
 
@@ -25,6 +25,14 @@
 - 可选当前可见页面截图；截图可能包含账号画面，用户可在导出前关闭。
 
 诊断数据不包含 Cookie、Token、WBI keys、ticket、签名 URL、请求正文或原始接口响应。截图仅在用户点击扩展图标并主动导出时捕获。
+
+### Banner 设置
+
+诊断面板的 `Banner` 页支持三种来源：官方自动、内置默认和本地 `.brbanner` 包。官方源使用首页当前的固定 `GET /x/web-show/page/header/v2?category=0`，读取官方 `pic`、`litpic` 和 `split_layer`，按响应实际层数渲染，不固定截断到 32 层；失败时按“最近一次成功数据 -> 内置默认”回退。官方单层资源加载失败不会混入旧内置 Banner，避免不同 Banner 拼接；本地包失效时只回退内置默认，不自动切换到官方源。palxiao 包保留每层原始尺寸和 `a/g/f/deg/opacity` 参数，按作者的视口补偿与像素位移算法渲染。
+
+`.brbanner` 是 ZIP 容器，根目录只允许 `manifest.json`、`preview.webp` 和 `assets/` 下的 PNG/JPEG/WebP/WebM。扩展会校验路径、MIME、尺寸、SHA-256、压缩包大小、目录条目预算和 BannerModel 字段；校验失败不会改变当前 Banner。包索引和二进制资源分别保存在 `chrome.storage.local` 与 IndexedDB，不会进入扩展安装目录。
+
+本地包支持手动选择、每次首页生命周期随机选择和按本地日期稳定选择。默认轮换为手动，导入后必须点击“应用”才会替换首页 Banner。转换器位于仓库根目录 `tools/banner-pack/convert.js`，生成的验证包放在 `release-assets/banner/`，不会作为扩展本体资源加载。
 
 ## 安装
 
@@ -86,6 +94,8 @@
 - `page-bridge.js`：MAIN world 固定操作、固定路由、上游校验和跨 world 白名单投影。
 - `sw.js`：公开接口、搜索、PGC 等 extension service worker 数据通道。
 - `homepage-renderer.js`：closed ShadowRoot 内的 DOM、样式和交互实现。
+- `banner-model.js`：BannerModel、内置 Banner 和 `.brbanner v1` 严格校验器。
+- `tools/banner-pack/convert.js`：将指定 palxiao 数据目录转换为独立 `.brbanner` 包。
 - `homepage.css`：样式证据和定向测试使用的 CSS 文件；运行时主要样式由 renderer 内作用域 CSS 提供。
 - `assets/homepage/`：本地 banner、图标、字体、占位图、二维码和固定浮层素材。
 - `tests/`：bridge、renderer、布局、交互、安全边界和真实接口冒烟测试。
@@ -113,7 +123,7 @@ Host permissions：
 
 ## 当前状态
 
-`0.2.64` 新增诊断控制面板、脱敏接口遥测、错误日志、用户反馈和可选截图导出。
+`0.2.66` 新增 BannerModel、官方 Banner 自动接入、本地 `.brbanner` 导入、预览、应用、删除及本地包轮换。Banner 包以独立 Release asset 发布，不包含在扩展本体中。
 
 
 

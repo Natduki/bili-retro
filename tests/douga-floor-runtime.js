@@ -165,7 +165,7 @@ assert.match(rendererSource, /#bili_report_douga \.custom-rank-wrap \{[^}]*align
 assert.match(rendererSource, /#bili_report_douga \.custom-rank-wrap \.title \{[^}]*margin: 0/);
 assert.match(contentSource, /requestDougaFloor\(currentLifecycle, true, false\)\.then/);
 assert.match(contentSource, /requestDougaFloor\(currentLifecycle, false, true\)/);
-assert.match(contentSource, /stage-11-current-ranks-r20/);
+assert.match(contentSource, /stage-11-banner-import-r21/);
 assert.match(contentSource, /dougaRankRetryAttempted/);
 
 (async () => {

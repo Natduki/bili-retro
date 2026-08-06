@@ -3,8 +3,8 @@
 
   const ROOT_URL = "https://www.bilibili.com/";
   const HOST_ID = "extension-b-stage-2-host";
-  const BUILD_MARKER = "stage-11-current-ranks-r20";
-  const EXTENSION_VERSION = "0.2.64";
+  const BUILD_MARKER = "stage-11-banner-import-r21";
+  const EXTENSION_VERSION = "0.2.66";
   const STYLE_ID = "extension-b-stage-2-hide-style";
   const URL_POLL_MS = 250;
   const BODY_WAIT_MS = 50;
@@ -18,6 +18,8 @@
   const PGC_GUOCHUANG_OPERATION = "PGC_GUOCHUANG_COMPOSITE";
   const LIVE_HOVER_OPERATION = "LIVE_HOVER";
   const PRIMARY_MENU_COUNTS_OPERATION = "PRIMARY_MENU_COUNTS";
+  const BANNER_CURRENT_OPERATION = "BANNER_CURRENT";
+  const BANNER_MAX_ASSETS = 512;
   const RECOMMENDATION_OPERATION = "RECOMMENDATION_FEED";
   const DOUGA_OPERATION = "DOUGA_FLOOR";
   const ORDINARY_ZONE_OPERATION = "ORDINARY_ZONE_FLOOR";
@@ -181,6 +183,8 @@
       this.primaryMenu = null;
       this.primaryMenuCountsRequested = false;
       this.primaryMenuCountsGeneration = 0;
+      this.bannerGeneration = 0;
+      this.bannerRequested = false;
       this.messagePanel = null;
       this.messageRequested = false;
       this.messageDataLoaded = false;
@@ -656,6 +660,7 @@
     "HISTORY_SUMMARY",
     LIVE_HOVER_OPERATION,
     PRIMARY_MENU_COUNTS_OPERATION,
+    BANNER_CURRENT_OPERATION,
     RECOMMENDATION_OPERATION,
     DOUGA_OPERATION,
     ORDINARY_ZONE_OPERATION,
@@ -865,6 +870,11 @@
       && bridgeOwnKeys(item) === "key\u001Fvalue"
       && item.key === PRIMARY_MENU_COUNT_KEYS[index]
       && (item.value === null || (Number.isSafeInteger(item.value) && item.value >= 0)));
+  const isBannerCurrentData = (value) => Boolean(
+    globalThis.ExtensionBBannerModel
+      && typeof globalThis.ExtensionBBannerModel.isBannerModel === "function"
+      && globalThis.ExtensionBBannerModel.isBannerModel(value)
+  );
   const isRecommendationHref = (value, bvid) => typeof value === "string"
     && value === `https://www.bilibili.com/video/${bvid}`;
   const isRecommendationData = (value) => isBridgePlainObject(value)
@@ -1153,6 +1163,9 @@
     }
     if (operation === PRIMARY_MENU_COUNTS_OPERATION) {
       return isPrimaryMenuCountsData(value);
+    }
+    if (operation === BANNER_CURRENT_OPERATION) {
+      return isBannerCurrentData(value);
     }
     if (operation === RECOMMENDATION_OPERATION) {
       return isRecommendationData(value);
@@ -2139,6 +2152,126 @@
         setPrimaryMenuCountsRuntimeState(currentLifecycle, "failure");
       }
     });
+  };
+
+  const BANNER_RUNTIME_GET_MESSAGE = "BANNER_RUNTIME_GET_V1";
+  const BANNER_LAST_GOOD_SET_MESSAGE = "BANNER_LAST_GOOD_SET_V1";
+  const BANNER_APPLY_MESSAGE = "BANNER_APPLY_V1";
+  const BANNER_REFRESH_MESSAGE = "BANNER_REFRESH_OFFICIAL_V1";
+  const BANNER_RUNTIME_STATES = new Set(["loading", "official", "last-good", "builtin", "imported", "error"]);
+  const setBannerRuntimeState = (currentLifecycle, state) => {
+    if (!isCurrentLifecycle(currentLifecycle) || !currentLifecycle.host || !BANNER_RUNTIME_STATES.has(state)) return;
+    currentLifecycle.host.setAttribute("data-extension-b-banner-state", state);
+  };
+  const setBannerRuntimeIdentity = (currentLifecycle, model, state) => {
+    if (!isCurrentLifecycle(currentLifecycle) || !currentLifecycle.host) return;
+    const safeModel = isBannerCurrentData(model) ? model : null;
+    currentLifecycle.host.setAttribute("data-extension-b-banner-source", state || (safeModel && safeModel.source) || "error");
+    currentLifecycle.host.setAttribute("data-extension-b-banner-id", safeModel ? safeModel.id : "");
+    currentLifecycle.host.setAttribute("data-extension-b-banner-name", safeModel ? safeModel.name : "");
+  };
+  const isBannerRuntimeEnvelope = (value) => isBridgePlainObject(value)
+    && Object.keys(value).sort().join("\u001F") === "assets\u001FlastGood\u001Fmodel\u001Fsettings\u001Ftype"
+    && value.type === "BANNER_RUNTIME_RESULT_V1"
+    && (value.model === null || isBannerCurrentData(value.model))
+    && (value.lastGood === null || isBannerCurrentData(value.lastGood))
+    && isBridgePlainObject(value.settings)
+    && Object.keys(value.settings).sort().join("\u001F") === "packageId\u001Frotation\u001Fsource"
+    && ["official", "builtin", "imported"].includes(value.settings.source)
+    && ["manual", "random", "daily"].includes(value.settings.rotation)
+    && (value.settings.packageId === null || (typeof value.settings.packageId === "string" && value.settings.packageId.length <= 96))
+    && Array.isArray(value.assets)
+    && value.assets.length <= BANNER_MAX_ASSETS
+    && value.assets.every((asset) => isBridgePlainObject(asset)
+      && Object.keys(asset).sort().join("\u001F") === "assetRef\u001Fbytes"
+      && typeof asset.assetRef === "string"
+      && ((asset.bytes instanceof ArrayBuffer)
+        || (typeof asset.bytes === "string" && asset.bytes.length > 0 && asset.bytes.length <= Math.ceil((8 * 1024 * 1024) / 3) * 4
+          && asset.bytes.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(asset.bytes))));
+  const bytesToDataUrl = (bytes, mime) => {
+    let array;
+    if (bytes instanceof ArrayBuffer) {
+      if (bytes.byteLength > 8 * 1024 * 1024) return null;
+      array = new Uint8Array(bytes);
+    } else if (typeof bytes === "string" && bytes.length > 0 && bytes.length <= Math.ceil((8 * 1024 * 1024) / 3) * 4
+      && bytes.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(bytes)) {
+      try {
+        const binary = window.atob(bytes);
+        if (binary.length > 8 * 1024 * 1024) return null;
+        array = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) array[index] = binary.charCodeAt(index);
+      } catch { return null; }
+    } else return null;
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let index = 0; index < array.length; index += chunkSize) {
+      binary += String.fromCharCode(...array.subarray(index, Math.min(index + chunkSize, array.length)));
+    }
+    try { return `data:${mime};base64,${window.btoa(binary)}`; } catch { return null; }
+  };
+  const requestBannerStorage = () => new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage({ type: BANNER_RUNTIME_GET_MESSAGE }, (response) => {
+        resolve(isBannerRuntimeEnvelope(response) ? response : null);
+      });
+    } catch { resolve(null); }
+  });
+  const applyBannerRuntimeModel = (currentLifecycle, model, assets, generation, state) => {
+    if (!isCurrentLifecycle(currentLifecycle)
+      || generation !== currentLifecycle.bannerGeneration
+      || !currentLifecycle.rendered
+      || typeof currentLifecycle.rendered.setBannerModel !== "function"
+      || !isBannerCurrentData(model)) return false;
+    const assetMap = {};
+    for (const asset of Array.isArray(assets) ? assets : []) {
+      const mime = model.layers.find((layer) => layer.assetRef === asset.assetRef)?.type || "image/webp";
+      const url = bytesToDataUrl(asset.bytes, mime);
+      if (url) assetMap[asset.assetRef] = url;
+    }
+    const committed = currentLifecycle.rendered.setBannerModel(model, assetMap, generation);
+    if (committed) {
+      setBannerRuntimeState(currentLifecycle, state);
+      setBannerRuntimeIdentity(currentLifecycle, model, state);
+    }
+    return committed;
+  };
+  const requestBannerRuntime = async (currentLifecycle, forceOfficial = false) => {
+    if (!isCurrentLifecycle(currentLifecycle) || currentLifecycle.bannerRequested) return false;
+    currentLifecycle.bannerRequested = true;
+    const generation = ++currentLifecycle.bannerGeneration;
+    setBannerRuntimeState(currentLifecycle, "loading");
+    try {
+      const runtime = await requestBannerStorage();
+      if (!isCurrentLifecycle(currentLifecycle) || generation !== currentLifecycle.bannerGeneration) return false;
+      const settings = runtime ? runtime.settings : { source: "official", packageId: null, rotation: "manual" };
+      const source = forceOfficial ? "official" : settings.source;
+      if (source === "builtin") {
+        const model = globalThis.ExtensionBBannerModel && globalThis.ExtensionBBannerModel.BUILTIN_BANNER_MODEL;
+        return applyBannerRuntimeModel(currentLifecycle, model, [], generation, "builtin");
+      }
+      if (source === "imported") {
+        if (runtime && runtime.model
+          && applyBannerRuntimeModel(currentLifecycle, runtime.model, runtime.assets, generation, "imported")) return true;
+        const builtin = globalThis.ExtensionBBannerModel && globalThis.ExtensionBBannerModel.BUILTIN_BANNER_MODEL;
+        return applyBannerRuntimeModel(currentLifecycle, builtin, [], generation, "builtin");
+      }
+      const official = await requestPageBridge(BANNER_CURRENT_OPERATION, currentLifecycle);
+      if (!isCurrentLifecycle(currentLifecycle) || generation !== currentLifecycle.bannerGeneration) return false;
+      if (isBannerCurrentData(official) && applyBannerRuntimeModel(currentLifecycle, official, [], generation, "official")) {
+        try { chrome.runtime.sendMessage({ type: BANNER_LAST_GOOD_SET_MESSAGE, model: official }); } catch (_) {}
+        return true;
+      }
+      if (runtime && runtime.lastGood
+        && applyBannerRuntimeModel(currentLifecycle, runtime.lastGood, [], generation, "last-good")) return true;
+      const builtin = globalThis.ExtensionBBannerModel && globalThis.ExtensionBBannerModel.BUILTIN_BANNER_MODEL;
+      if (applyBannerRuntimeModel(currentLifecycle, builtin, [], generation, "builtin")) return true;
+      setBannerRuntimeState(currentLifecycle, "error");
+      return false;
+    } finally {
+      if (isCurrentLifecycle(currentLifecycle) && generation === currentLifecycle.bannerGeneration) {
+        currentLifecycle.bannerRequested = false;
+      }
+    }
   };
 
   const requestWatchLaterMutation = (currentLifecycle, event, payload) => {
@@ -3992,6 +4125,14 @@
   };
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (sender && sender.id === chrome.runtime.id
+      && isBridgePlainObject(message)
+      && Object.keys(message).sort().join("\u001F") === "type"
+      && (message.type === BANNER_APPLY_MESSAGE || message.type === BANNER_REFRESH_MESSAGE)) {
+      if (lifecycle) lifecycle.bannerRequested = false;
+      requestBannerRuntime(lifecycle, message.type === BANNER_REFRESH_MESSAGE).then((ok) => sendResponse({ ok: ok === true }));
+      return true;
+    }
     if (!sender || sender.id !== chrome.runtime.id
       || !isBridgePlainObject(message)
       || bridgeOwnKeys(message) !== "type"
@@ -4109,6 +4250,7 @@
       requestMangaFloor(currentLifecycle, false);
       requestLiveFloorInitial(currentLifecycle);
       requestPrimaryMenuCounts(currentLifecycle);
+      requestBannerRuntime(currentLifecycle);
       requestPgcAnime(currentLifecycle);
       requestPgcGuochuang(currentLifecycle);
     }

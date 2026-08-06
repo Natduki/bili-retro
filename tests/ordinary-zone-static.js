@@ -41,9 +41,9 @@ for (const [type, feedRegion] of Object.entries(channelFeeds)) {
 }
 
 assert.match(content, /data-extension-b-zone-\$\{type\}-state/);
-assert.match(content, /stage-11-current-ranks-r13/);
+assert.match(content, /stage-11-banner-import-r21/);
 assert.match(content, /bridgeOwnKeys\(value\) === "batch\\u001FitemType\\u001Fitems\\u001FrankType\\u001Franks\\u001Fstatus\\u001Ftype"/);
-assert.match(content, /stage-11-current-ranks-r13/);
+assert.match(content, /stage-11-banner-import-r21/);
 assert.match(content, /requestOrdinaryZoneFloor\(currentLifecycle, type, false, true\)/);
 assert.match(bridge, /const usableRankRaw = config\.rank && isOrdinaryRankEnvelope\(rankRaw, config\) \? rankRaw : null;/);
 assert.match(bridge, /request\.includeRank && rankRoute/);
@@ -53,7 +53,7 @@ assert.match(content, /Promise\.all\(Array\.from\(\{ length: 4 \}, \(\) => worke
 assert.match(content, /ordinaryRankRetryTypes/);
 assert.match(content, /const ORDINARY_ZONE_RANK_TYPES =/);
 assert.match(content, /const retryTypes = Array\.from\(ORDINARY_ZONE_RANK_TYPES\)/);
-assert.match(content, /Array\.from\(\{ length: 2 \}, \(\) => retryWorker\(\)\)/);
+assert.match(content, /await retryWorker\(\);/);
 assert.match(content, /waitForOrdinaryRetry\(currentLifecycle, 450\)/);
 assert.match(content, /requestInitialOrdinaryZoneFloors\(currentLifecycle\);/);
 assert.doesNotMatch(content, /for \(const type of ORDINARY_ZONE_TYPES\) requestOrdinaryZoneFloor\(currentLifecycle, type, false\)/);

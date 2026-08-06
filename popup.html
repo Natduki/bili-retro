@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>bili-retro 诊断</title>
+  <title>bili-retro 控制面板</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
     <img src="assets/icons/bili-retro-32.png" width="32" height="32" alt="">
     <div class="brand">
       <strong>bili-retro</strong>
-      <span id="connectionText">正在连接</span>
+      <span id="connectionText">控制面板 · 正在连接</span>
     </div>
     <button id="refreshButton" class="icon-button" type="button" title="立即刷新" aria-label="立即刷新">↻</button>
   </header>
@@ -28,6 +28,7 @@
       <button type="button" class="active" data-view="status">实时状态</button>
       <button type="button" data-view="errors">错误日志 <span id="errorBadge">0</span></button>
       <button type="button" data-view="feedback">反馈导出</button>
+      <button type="button" data-view="banner">Banner</button>
     </nav>
 
     <section id="statusView" class="view active">
@@ -51,12 +52,40 @@
       </div>
       <p id="exportStatus" class="export-status" role="status"></p>
     </section>
+
+    <section id="bannerView" class="view banner-view">
+      <div class="banner-settings-row">
+        <label for="bannerSource">来源</label>
+        <select id="bannerSource">
+          <option value="official">官方自动</option>
+          <option value="builtin">内置默认</option>
+          <option value="imported">本地包</option>
+        </select>
+      </div>
+      <div class="banner-settings-row">
+        <label for="bannerRotation">本地包轮换</label>
+        <select id="bannerRotation">
+          <option value="manual">手动选择</option>
+          <option value="random">随机刷新</option>
+          <option value="daily">按日期轮换</option>
+        </select>
+      </div>
+      <div class="banner-actions">
+        <label class="file-button" for="bannerImport">导入 .brbanner</label>
+        <input id="bannerImport" type="file" accept=".brbanner,application/zip" hidden>
+        <button id="bannerRefreshButton" type="button">刷新官方</button>
+      </div>
+      <p id="bannerStatus" class="export-status" role="status">正在读取 Banner 设置</p>
+      <div id="bannerCurrent" class="banner-current"></div>
+      <div id="bannerPackages" class="banner-packages"></div>
+    </section>
   </main>
 
   <footer>
     <span id="versionText">--</span>
     <span id="updatedText">尚未更新</span>
   </footer>
+  <script src="banner-model.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

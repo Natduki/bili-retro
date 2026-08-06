@@ -8,6 +8,7 @@
     AUTH_STATUS: "登录状态", PROFILE_STATS: "用户资料", MESSAGE_SUMMARY: "消息摘要", DYNAMIC_SUMMARY: "动态摘要",
     FAVORITE_SUMMARY: "收藏摘要", HISTORY_SUMMARY: "历史摘要", LIVE_HOVER: "直播浮层",
     PRIMARY_MENU_COUNTS: "频道数量", RECOMMENDATION_FEED: "推荐视频", DOUGA_FLOOR: "动画区",
+    BANNER_CURRENT: "官方 Banner",
     ORDINARY_ZONE_FLOOR: "视频分区", READ_FLOOR: "专栏", LIVE_FLOOR_INITIAL: "直播区",
     LIVE_FLOOR_MORE: "直播换批", LIVE_FLOOR_FOLLOWING: "关注主播", WATCH_LATER_MUTATE: "稍后再看",
     SEARCH_SUGGEST: "热搜", SHOW_LOGIN: "登录组件", LOGOUT: "退出登录"
@@ -24,9 +25,17 @@
   const feedbackText = byId("feedbackText");
   const includeScreenshot = byId("includeScreenshot");
   const exportStatus = byId("exportStatus");
+  const bannerSource = byId("bannerSource");
+  const bannerRotation = byId("bannerRotation");
+  const bannerImport = byId("bannerImport");
+  const bannerRefreshButton = byId("bannerRefreshButton");
+  const bannerStatus = byId("bannerStatus");
+  const bannerCurrent = byId("bannerCurrent");
+  const bannerPackages = byId("bannerPackages");
   let latestSnapshot = null;
   let activeTab = null;
   let pollTimer = 0;
+  let bannerSnapshot = { settings:{ source:"official", packageId:null, rotation:"manual" }, packages:[] };
 
   const classifyStatus = (value) => {
     const status = String(value || "").toLowerCase();
@@ -70,6 +79,7 @@
     .replace("auth", "登录态")
     .replace("pgc-anime", "番剧")
     .replace("pgc-guochuang", "国创")
+    .replace("banner-state", "Banner 来源")
     .replace("primary-menu-counts", "频道数量")
     .replace("search-autocomplete", "搜索联想")
     .replace("search", "搜索")
@@ -137,9 +147,105 @@
     return tabs && tabs[0] ? tabs[0] : null;
   };
 
+  const isHomepageTab = (tab) => Boolean(tab && Number.isInteger(tab.id)
+    && (tab.url === "https://www.bilibili.com/" || tab.url === "https://www.bilibili.com/index.html"));
+  const queryHomepageTab = async () => {
+    const active = await queryActiveTab();
+    if (isHomepageTab(active)) return active;
+    const response = await sendExtensionMessage({ type:"BANNER_HOME_TAB_GET_V1" });
+    if (!response || response.type !== "BANNER_HOME_TAB_RESULT_V1" || !Number.isInteger(response.tabId)) return null;
+    return { id:response.tabId, windowId:Number.isInteger(response.windowId) ? response.windowId : null, url:"https://www.bilibili.com/" };
+  };
+
+  const sendExtensionMessage = (message) => new Promise((resolve) => {
+    try { chrome.runtime.sendMessage(message, (response) => resolve(response || null)); } catch { resolve(null); }
+  });
+  const sendActiveBannerMessage = async (type) => {
+    const tab = (activeTab && isHomepageTab(activeTab)) ? activeTab : await queryHomepageTab();
+    if (!tab || !Number.isInteger(tab.id)) return false;
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, { type });
+      return Boolean(response && response.ok === true);
+    } catch { return false; }
+  };
+  const renderBannerPanel = (snapshot) => {
+    bannerSnapshot = snapshot || bannerSnapshot;
+    const settings = bannerSnapshot.settings || { source:"official", packageId:null, rotation:"manual" };
+    bannerSource.value = settings.source;
+    bannerRotation.value = settings.rotation;
+    bannerCurrent.replaceChildren();
+    const current = createElement("div", "banner-current");
+    const title = createElement("h3", "", settings.source === "official" ? "当前：官方自动" : settings.source === "builtin" ? "当前：内置默认" : "当前：本地包");
+    current.appendChild(title);
+    const selected = (bannerSnapshot.packages || []).find((item) => item.id === settings.packageId);
+    if (selected && selected.previewDataUrl) {
+      const preview = createElement("img", "banner-preview"); preview.src = selected.previewDataUrl; preview.alt = "Banner 预览"; current.appendChild(preview);
+    }
+    const meta = createElement("div", "banner-meta");
+    meta.appendChild(createElement("span", "", selected ? `${selected.name} v${selected.version}` : (settings.source === "official" ? "失败时使用最近一次成功数据" : "默认资源随扩展提供")));
+    meta.appendChild(createElement("span", "", selected ? `${selected.layers} 层 · ${selected.size} bytes` : "当前实际来源由首页诊断状态确认"));
+    current.appendChild(meta); bannerCurrent.appendChild(current);
+    bannerPackages.replaceChildren();
+    if (!(bannerSnapshot.packages || []).length) {
+      bannerPackages.appendChild(createElement("p", "banner-empty", "尚未安装 .brbanner 包")); return;
+    }
+    for (const item of bannerSnapshot.packages) {
+      const card = createElement("article", "banner-package");
+      card.appendChild(createElement("h3", "", `${item.name} · ${item.version}`));
+      if (item.previewDataUrl) { const image = createElement("img", "banner-preview"); image.src = item.previewDataUrl; image.alt = `${item.name} 预览`; card.appendChild(image); }
+      const details = createElement("div", "banner-meta");
+      for (const value of [`来源：${item.source}`, `作者：${item.author}`, `许可：${item.license}`, `层数：${item.layers}`, `大小：${item.size} bytes`, `SHA-256：${item.sha256.slice(0, 16)}…`]) details.appendChild(createElement("span", "", value));
+      card.appendChild(details);
+      const actions = createElement("div", "banner-package-actions");
+      const apply = createElement("button", "", "应用"); apply.type = "button"; apply.disabled = settings.source === "imported" && settings.packageId === item.id;
+      apply.addEventListener("click", async () => { bannerStatus.textContent = "正在应用 Banner"; await setBannerSettings({ source:"imported", packageId:item.id, rotation:bannerRotation.value }); });
+      const remove = createElement("button", "", "删除"); remove.type = "button";
+      remove.addEventListener("click", async () => { bannerStatus.textContent = "正在删除 Banner 包"; const result = await sendExtensionMessage({ type:"BANNER_PACKAGE_DELETE_V1", id:item.id }); if (!result || result.ok !== true) { bannerStatus.textContent = "删除失败，当前 Banner 未改变"; return; } bannerStatus.textContent = "Banner 包已删除"; await refreshBannerPanel(); });
+      actions.appendChild(apply); actions.appendChild(remove); card.appendChild(actions); bannerPackages.appendChild(card);
+    }
+  };
+  const refreshBannerPanel = async () => {
+    const response = await sendExtensionMessage({ type:"BANNER_STORAGE_LIST_V1" });
+    if (!response || response.type !== "BANNER_STORAGE_LIST_RESULT_V1") { bannerStatus.textContent = "无法读取 Banner 设置"; return; }
+    renderBannerPanel(response); bannerStatus.textContent = "Banner 设置已读取";
+  };
+  const setBannerSettings = async (settings) => {
+    const response = await sendExtensionMessage({ type:"BANNER_SETTINGS_SET_V1", settings });
+    if (!response || response.ok !== true) { bannerStatus.textContent = "设置保存失败，当前 Banner 未改变"; return false; }
+    const applied = await sendActiveBannerMessage("BANNER_APPLY_V1");
+    bannerStatus.textContent = applied ? "Banner 已应用" : "设置已保存，当前首页稍后会应用";
+    await refreshBannerPanel(); return applied;
+  };
+  const bannerBytesToBase64 = (buffer) => {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + 0x8000, bytes.length)));
+    }
+    return btoa(binary);
+  };
+  const importBannerPackage = async () => {
+    const file = bannerImport.files && bannerImport.files[0]; if (!file) return;
+    bannerImport.value = ""; bannerStatus.textContent = "正在校验 Banner 包";
+    try {
+      const parsed = await globalThis.ExtensionBBannerModel.parseBannerPackage(await file.arrayBuffer());
+      const transportPackage = {
+        ...parsed,
+        assets: parsed.assets.map((asset) => ({
+          assetRef: asset.assetRef,
+          mime: asset.mime,
+          bytes: bannerBytesToBase64(asset.bytes)
+        }))
+      };
+      const response = await sendExtensionMessage({ type:"BANNER_PACKAGE_IMPORT_V1", package: transportPackage });
+      if (!response || response.ok !== true) throw new Error(response && response.error ? `IMPORT_REJECTED_${response.error}` : "IMPORT_REJECTED");
+      bannerStatus.textContent = "导入成功，点击应用后才会替换首页"; await refreshBannerPanel();
+    } catch (error) { bannerStatus.textContent = `导入失败：${error && error.message ? error.message : "文件无效"}`; }
+  };
+
   const refresh = async () => {
     try {
-      activeTab = await queryActiveTab();
+      activeTab = await queryHomepageTab();
       if (!activeTab || !Number.isInteger(activeTab.id)) throw new Error("NO_ACTIVE_TAB");
       const response = await chrome.tabs.sendMessage(activeTab.id, { type:MESSAGE_TYPE });
       renderSnapshot(response);
@@ -230,6 +336,23 @@
   byId("refreshButton").addEventListener("click", refresh);
   byId("exportBundleButton").addEventListener("click", exportBundle);
   byId("exportReportButton").addEventListener("click", exportReport);
+  bannerSource.addEventListener("change", () => {
+    const current = bannerSnapshot.settings || {};
+    setBannerSettings({ source:bannerSource.value, packageId:bannerSource.value === "imported" ? current.packageId : null, rotation:bannerRotation.value });
+  });
+  bannerRotation.addEventListener("change", () => {
+    const current = bannerSnapshot.settings || {};
+    setBannerSettings({ source:current.source || bannerSource.value, packageId:current.source === "imported" ? current.packageId : null, rotation:bannerRotation.value });
+  });
+  bannerImport.addEventListener("change", importBannerPackage);
+  bannerRefreshButton.addEventListener("click", async () => {
+    bannerStatus.textContent = "正在刷新官方 Banner";
+    const saved = await sendExtensionMessage({ type:"BANNER_SETTINGS_SET_V1", settings:{ source:"official", packageId:null, rotation:bannerRotation.value } });
+    if (!saved || saved.ok !== true) { bannerStatus.textContent = "设置保存失败，当前 Banner 未改变"; return; }
+    const applied = await sendActiveBannerMessage("BANNER_REFRESH_OFFICIAL_V1");
+    bannerStatus.textContent = applied ? "官方 Banner 已刷新" : "官方 Banner 刷新失败，首页保留当前内容";
+    await refreshBannerPanel();
+  });
   document.addEventListener("visibilitychange", () => {
     window.clearInterval(pollTimer);
     if (!document.hidden) {
@@ -238,5 +361,6 @@
     }
   });
   refresh();
+  refreshBannerPanel();
   pollTimer = window.setInterval(refresh, POLL_INTERVAL_MS);
 })();

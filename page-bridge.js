@@ -6,6 +6,7 @@
   const ORIGIN = "https://www.bilibili.com";
   // MODEL_CONFIG_UNVERIFIED: bridge routes and projections are intentionally fixed to the observed auth contract.
   const REQUEST_ID_LENGTH = 32;
+  const BANNER_CURRENT_OPERATION = "BANNER_CURRENT";
   const REQUEST_TIMEOUT_MS = 4000;
   const RANKING_REQUEST_TIMEOUT_MS = 12000;
   const RANKING_SESSION_TIMEOUT_MS = 4500;
@@ -34,6 +35,7 @@
     "HISTORY_SUMMARY",
     "LIVE_HOVER",
     "PRIMARY_MENU_COUNTS",
+    BANNER_CURRENT_OPERATION,
     "RECOMMENDATION_FEED",
     "DOUGA_FLOOR",
     "ORDINARY_ZONE_FLOOR",
@@ -133,6 +135,13 @@
       Object.freeze({
         host: "api.bilibili.com",
         path: "/x/web-interface/online",
+        method: "GET"
+      })
+    ]),
+    BANNER_CURRENT: Object.freeze([
+      Object.freeze({
+        host: "api.bilibili.com",
+        path: "/x/web-show/page/header/v2?category=0",
         method: "GET"
       })
     ]),
@@ -1844,6 +1853,134 @@
       || !Array.isArray(raw.data.list)) throw new Error("schema");
     return Object.freeze({ rooms: projectLiveFloorRooms(raw.data.list, 12) });
   };
+  const normalizeBannerText = (value, fallback = "") => typeof value === "string"
+    && value.length <= 160 && !/[\u0000-\u001F\u007F]/.test(value) ? value.trim() : fallback;
+  const normalizeBannerAsset = (value, mediaType = "image/webp") => {
+    if (typeof value !== "string" || value.length === 0 || value.length > 2048 || /[\u0000-\u001F\u007F]/.test(value)) return null;
+    let parsed;
+    try { parsed = new URL(value.startsWith("//") ? `https:${value}` : value); } catch { return null; }
+    if (parsed.protocol === "http:") parsed.protocol = "https:";
+    if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.port || parsed.hash
+      || !["i0.hdslb.com", "i1.hdslb.com", "i2.hdslb.com", "i3.hdslb.com"].includes(parsed.hostname)
+      || !/^\/bfs\/(?:archive|vc)\//.test(parsed.pathname)) return null;
+    const lowerPath = parsed.pathname.toLowerCase();
+    if (mediaType === "video/webm" && !lowerPath.endsWith(".webm")) return null;
+    if (mediaType !== "video/webm" && !/\.(?:png|jpe?g|webp)$/.test(lowerPath)) return null;
+    return parsed.href;
+  };
+  const bannerNumber = (value, fallback, min, max) => Number.isFinite(value) && value >= min && value <= max ? value : fallback;
+  const bannerVector = (value) => Array.isArray(value) && value.length >= 2
+    ? [bannerNumber(Number(value[0]), 0, -10000, 10000), bannerNumber(Number(value[1]), 0, -10000, 10000)] : [0, 0];
+  const bannerCurve = (value) => Array.isArray(value) && value.length === 4
+    && bannerNumber(Number(value[0]), NaN, 0, 1) === Number(value[0])
+    && bannerNumber(Number(value[1]), NaN, -100, 100) === Number(value[1])
+    && bannerNumber(Number(value[2]), NaN, 0, 1) === Number(value[2])
+    && bannerNumber(Number(value[3]), NaN, -100, 100) === Number(value[3])
+    ? Object.freeze(value.map((item) => Number(item))) : null;
+  const bannerWrap = (value) => value === "alternate" ? "alternate" : value === "clamp" ? "clamp" : "";
+  const projectBannerMotion = (entry) => {
+    const scale = isPlainObject(entry.scale) ? entry.scale : {};
+    const rotate = isPlainObject(entry.rotate) ? entry.rotate : {};
+    const translate = isPlainObject(entry.translate) ? entry.translate : {};
+    const blur = isPlainObject(entry.blur) ? entry.blur : {};
+    const opacity = isPlainObject(entry.opacity) ? entry.opacity : {};
+    const motion = Object.freeze({
+      scaleOffset: bannerNumber(Number(scale.offset), 0, -10, 10),
+      scaleCurve: bannerCurve(scale.offsetCurve),
+      rotateOffset: bannerNumber(Number(rotate.offset), 0, -360, 360),
+      rotateCurve: bannerCurve(rotate.offsetCurve),
+      translateCurve: bannerCurve(translate.offsetCurve),
+      blurOffset: bannerNumber(Number(blur.offset), 0, -100, 100),
+      blurCurve: bannerCurve(blur.offsetCurve),
+      blurWrap: bannerWrap(blur.wrap),
+      opacityOffset: bannerNumber(Number(opacity.offset), 0, -1, 1),
+      opacityCurve: bannerCurve(opacity.offsetCurve),
+      opacityWrap: bannerWrap(opacity.wrap)
+    });
+    // A split-layer entry is always rendered by the official motion path,
+    // even when this particular layer has only an initial scale and no curve.
+    return motion;
+  };
+  const bannerMediaType = (value) => {
+    if (typeof value !== "string") return null;
+    const lowerPath = value.split(/[?#]/, 1)[0].toLowerCase();
+    if (lowerPath.endsWith(".webm")) return "video/webm";
+    if (lowerPath.endsWith(".png")) return "image/png";
+    if (lowerPath.endsWith(".jpg") || lowerPath.endsWith(".jpeg")) return "image/jpeg";
+    if (lowerPath.endsWith(".webp")) return "image/webp";
+    return null;
+  };
+  const projectBannerLayer = (entry, index) => {
+    if (!isPlainObject(entry) || !Array.isArray(entry.resources) || !isPlainObject(entry.resources[0])) return null;
+    const src = entry.resources[0].src;
+    const mediaType = bannerMediaType(src);
+    if (!mediaType) return null;
+    const assetRef = normalizeBannerAsset(src, mediaType);
+    if (!assetRef) return null;
+    const initialTranslate = bannerVector(entry.translate && entry.translate.initial);
+    const offsetTranslate = bannerVector(entry.translate && entry.translate.offset);
+    const initialScale = bannerNumber(Number(entry.scale && entry.scale.initial), 1, 0.01, 10);
+    const rotation = bannerNumber(Number(entry.rotate && entry.rotate.offset), 0, -360, 360);
+    const blur = bannerNumber(Number(entry.blur && entry.blur.initial), 0, 0, 100);
+    const opacity = bannerNumber(Number(entry.opacity && entry.opacity.initial), 1, 0, 1);
+    const motion = projectBannerMotion(entry);
+    return Object.freeze({
+      id: `official-layer-${index + 1}`,
+      type: mediaType,
+      width: 1920,
+      height: 180,
+      transform: Object.freeze([1, 0, 0, 1, initialTranslate[0], initialTranslate[1]]),
+      offset: Object.freeze({ x: offsetTranslate[0], y: offsetTranslate[1] }),
+      scale: initialScale,
+      rotation,
+      opacity,
+      blur,
+      motion,
+      assetRef
+    });
+  };
+  const projectBannerCurrent = (raw) => {
+    if (!isPlainObject(raw) || raw.code !== 0 || !isPlainObject(raw.data)) throw new Error("schema");
+    const backgroundRef = normalizeBannerAsset(raw.data.pic, bannerMediaType(raw.data.pic) || "image/webp");
+    if (!backgroundRef) throw new Error("schema");
+    const logoRef = raw.data.litpic
+      ? normalizeBannerAsset(raw.data.litpic, bannerMediaType(raw.data.litpic) || "image/webp")
+      : null;
+    let configuredLayers = [];
+    if (raw.data.is_split_layer === 1 && typeof raw.data.split_layer === "string") {
+      try {
+        const parsed = JSON.parse(raw.data.split_layer);
+        if (isPlainObject(parsed) && Array.isArray(parsed.layers)) {
+          configuredLayers = parsed.layers.map(projectBannerLayer).filter(Boolean);
+        }
+      } catch (_) {
+        configuredLayers = [];
+      }
+    }
+    const layers = configuredLayers.length > 0 ? configuredLayers : [Object.freeze({
+      id: "official-background",
+      type: bannerMediaType(backgroundRef) || "image/webp",
+      width: 1920,
+      height: 180,
+      transform: Object.freeze([1, 0, 0, 1, 0, 0]),
+      offset: Object.freeze({ x: 0, y: 0 }),
+      scale: 1,
+      rotation: 0,
+      opacity: 1,
+      blur: 0,
+      assetRef: backgroundRef
+    })];
+    return Object.freeze({
+      schemaVersion: 1,
+      source: "official",
+      id: `official-header-${Number.isSafeInteger(raw.data.id) && raw.data.id > 0 ? raw.data.id : "current"}`,
+      name: normalizeBannerText(raw.data.name, "官方 Banner") || "官方 Banner",
+      canvas: Object.freeze({ width: 1920, height: 180 }),
+      backgroundRef,
+      logoRef,
+      layers: Object.freeze(layers)
+    });
+  };
   const execute = async (request, controller) => {
     try {
       if (request.operation === "SHOW_LOGIN") {
@@ -1906,6 +2043,10 @@
       if (request.operation === "PRIMARY_MENU_COUNTS") {
         const raw = await fetchPublicFixed(OPERATION_ROUTES.PRIMARY_MENU_COUNTS[0], controller.signal);
         return { ok: true, data: projectPrimaryMenuCounts(raw) };
+      }
+      if (request.operation === BANNER_CURRENT_OPERATION) {
+        const raw = await fetchPublicFixed(OPERATION_ROUTES.BANNER_CURRENT[0], controller.signal);
+        return { ok: true, data: projectBannerCurrent(raw) };
       }
       if (request.operation === "RECOMMENDATION_FEED") {
         const raw = await fetchFixed(recommendationRoute(request.batch), controller.signal);
@@ -2134,6 +2275,9 @@
       projectLiveFloorInitial,
       projectLiveFloorMore,
       projectLiveFloorFollowing,
+      normalizeBannerAsset,
+      projectBannerLayer,
+      projectBannerCurrent,
       normalizeSearchDefaultUrl,
       SEARCH_MARK_KEYS,
       SEARCH_MARK_BY_ICON_URL,

@@ -774,7 +774,7 @@
   .mini-login__note { margin: 10px 0 0; color: #9499a0; font-size: 12px; text-align: center; }
   .bili-banner { position: relative; z-index: 0; min-width: 999px; min-height: 155px; height: 9.375vw; overflow: hidden; display: flex; justify-content: center; background: #f9f9f9; }
   .animated-banner { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
-  .animated-banner > .banner-layer-item { position: absolute; top: 0; left: 0; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+  .animated-banner > .banner-layer-item { position: absolute; top: 0; left: 0; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; will-change: transform; }
   .animated-banner > .banner-layer-item img, .animated-banner > .banner-layer-item video { flex: 0 0 auto; max-width: none; max-height: none; object-fit: fill; will-change: transform; transform-origin: center center; pointer-events: none; }
   .bili-banner .taper-line { position: absolute; top: 0; left: 0; z-index: 0; width: 100%; height: 100px; background: linear-gradient(rgba(0,0,0,.4), transparent); pointer-events: none; }
   .bili-banner .b-logo { position: relative; z-index: 2; --banner-wrap-width: 1630px; width: min(var(--banner-wrap-width), calc(100% - 48px)); height: 100%; margin: 0; }
@@ -6772,56 +6772,57 @@
 
   // A-plan banner layer parameter table (18 layers total: 17 PNG + 1 WebM at the end).
   // Values ported verbatim from prototype/homepage/index.html:361-378.
-  const BANNER_LAYER_CONFIG = Object.freeze([
-    { key: "BANNER_LAYER_01", scale: 0.87 },
-    { key: "BANNER_LAYER_02", scale: 0.87, offsetX: 3, offsetY: 0 },
-    { key: "BANNER_LAYER_03", initX: 0, initY: 5, offsetX: 20, offsetY: 10 },
-    { key: "BANNER_LAYER_04", scale: 0.87, offsetX: 5, offsetY: 0 },
-    { key: "BANNER_LAYER_05", scale: 0.87, initX: -270, initY: -20, offsetX: 20, offsetY: 0 },
-    { key: "BANNER_LAYER_06", scale: 0.95, initX: -50, initY: 0, offsetX: 15, offsetY: -5 },
-    { key: "BANNER_LAYER_07", initX: -250, initY: -20, offsetX: 30, offsetY: 0, rotate: 10, width: 75, height: 60 },
-    { key: "BANNER_LAYER_08", offsetX: 30, offsetY: 5 },
-    { key: "BANNER_LAYER_09", scale: 0.87, offsetX: 50, offsetY: 10 },
-    { key: "BANNER_LAYER_10", scale: 0.95, offsetX: 20, offsetY: 5 },
-    { key: "BANNER_LAYER_11", offsetX: 40, offsetY: 10 },
-    { key: "BANNER_LAYER_12", scale: 1.1, offsetX: 70, offsetY: 15 },
-    { key: "BANNER_LAYER_13", scale: 1.1, offsetX: 80, offsetY: 15 },
-    { key: "BANNER_LAYER_14", scale: 1.1, offsetX: 90, offsetY: 15 },
-    { key: "BANNER_LAYER_15", scale: 0.87 },
-    { key: "BANNER_LAYER_16", offsetX: 70, offsetY: 8 },
-    { key: "BANNER_LAYER_17", offsetX: 60, offsetY: 10 },
-    { key: "BANNER_MOTION_18", offsetX: 60, offsetY: 0, blur: 1, opacity: 0.5, isVideo: true }
-  ]);
+  const BANNER_MODEL_API = globalThis.ExtensionBBannerModel || null;
+  const BUILTIN_BANNER_MODEL = BANNER_MODEL_API && BANNER_MODEL_API.BUILTIN_BANNER_MODEL
+    ? BANNER_MODEL_API.BUILTIN_BANNER_MODEL
+    : null;
+  const isRenderableBannerModel = (model) => Boolean(
+    BANNER_MODEL_API && typeof BANNER_MODEL_API.isBannerModel === "function" && BANNER_MODEL_API.isBannerModel(model)
+  );
+  const resolveBannerAsset = (assetRef, assetMap = null) => {
+    if (assetMap && typeof assetMap[assetRef] === "string") return assetMap[assetRef];
+    if (typeof assetRef !== "string") return null;
+    if (/^https:\/\//.test(assetRef)) return assetRef;
+    return resolveLocalAssetUrl(assetRef);
+  };
 
-  const createBanner = (root) => {
+  const createBanner = (root, model = BUILTIN_BANNER_MODEL, assetMap = null) => {
+    const safeModel = isRenderableBannerModel(model) ? model : BUILTIN_BANNER_MODEL;
     const banner = createNode(root, "section", "bili-banner");
     banner.setAttribute("data-role", "bili-banner");
-    banner.setAttribute("data-banner-state", "fixture");
+    banner.setAttribute("data-banner-state", safeModel && safeModel.source ? safeModel.source : "builtin");
+    banner.setAttribute("data-banner-id", safeModel && safeModel.id ? safeModel.id : "builtin-default");
+    banner.setAttribute("data-banner-name", safeModel && safeModel.name ? safeModel.name : "");
     // Static fallback background as CSS on banner element (matches A-plan style)
-    const fallbackUrl = resolveLocalAssetUrl(ASSET_KEYS.BANNER_FALLBACK);
+    const fallbackUrl = resolveBannerAsset(safeModel && safeModel.backgroundRef, assetMap)
+      || resolveLocalAssetUrl(ASSET_KEYS.BANNER_FALLBACK);
     if (fallbackUrl) {
       banner.style.background = `#f9f9f9 url("${fallbackUrl}") center 0/cover no-repeat`;
     }
     const animated = createNode(root, "div", "animated-banner");
     animated.setAttribute("aria-hidden", "true");
-    for (const config of BANNER_LAYER_CONFIG) {
+    for (const config of (safeModel ? safeModel.layers : [])) {
       const layer = createNode(root, "div", "banner-layer-item");
-      const width = config.width || 1920;
-      const height = config.height || 180;
+      const width = config.width;
+      const height = config.height;
+      layer.setAttribute("data-layer-id", config.id);
       layer.setAttribute("data-width", String(width));
       layer.setAttribute("data-height", String(height));
-      layer.setAttribute("data-scale", String(config.scale != null ? config.scale : 1));
-      layer.setAttribute("data-init-x", String(config.initX != null ? config.initX : 0));
-      layer.setAttribute("data-init-y", String(config.initY != null ? config.initY : 0));
-      layer.setAttribute("data-offset-x", String(config.offsetX != null ? config.offsetX : 0));
-      layer.setAttribute("data-offset-y", String(config.offsetY != null ? config.offsetY : 0));
-      layer.setAttribute("data-rotate", String(config.rotate != null ? config.rotate : 0));
-      layer.setAttribute("data-blur", String(config.blur != null ? config.blur : 0));
-      layer.setAttribute("data-opacity", String(config.opacity != null ? config.opacity : 1));
-      const url = resolveLocalAssetUrl(ASSET_KEYS[config.key]);
+      layer.setAttribute("data-size-mode", safeModel.source === "official" ? "intrinsic" : "declared");
+      layer.setAttribute("data-scale", String(config.scale));
+      layer.setAttribute("data-init-x", String(config.transform[4]));
+      layer.setAttribute("data-init-y", String(config.transform[5]));
+      layer.setAttribute("data-offset-x", String(config.offset.x));
+      layer.setAttribute("data-offset-y", String(config.offset.y));
+      layer.setAttribute("data-rotate", String(config.rotation));
+      layer.setAttribute("data-blur", String(config.blur));
+      layer.setAttribute("data-opacity", String(config.opacity));
+      layer.setAttribute("data-transform", JSON.stringify(config.transform));
+      if (config.motion) layer.setAttribute("data-motion", JSON.stringify(config.motion));
+      const url = resolveBannerAsset(config.assetRef, assetMap);
       if (url) {
         let media;
-        if (config.isVideo) {
+        if (config.type === "video/webm") {
           media = root.ownerDocument.createElement("video");
           media.muted = true;
           media.loop = true;
@@ -6836,6 +6837,11 @@
           media.setAttribute("src", url);
           media.setAttribute("alt", "");
         }
+        const hideFailedMedia = () => {
+          layer.setAttribute("data-asset-state", "error");
+          media.style.display = "none";
+        };
+        media.addEventListener("error", hideFailedMedia, { once: true });
         media.setAttribute("data-width", String(width));
         media.setAttribute("data-height", String(height));
         layer.appendChild(media);
@@ -6846,7 +6852,15 @@
     taper.setAttribute("aria-hidden", "true");
     const logoWrap = createNode(root, "div", "b-logo");
     const logoLink = createFixedAnchor(root, "head-logo", "HOME_ROOT", "");
-    logoLink.appendChild(createLocalImage(root, "logo-img", ASSET_KEYS.BANNER_LOGO, "哔哩哔哩"));
+    const logoUrl = resolveBannerAsset(safeModel && safeModel.logoRef, assetMap);
+    if (logoUrl) {
+      const logo = createNode(root, "img", "logo-img");
+      logo.setAttribute("src", logoUrl);
+      logo.setAttribute("alt", "哔哩哔哩");
+      logoLink.appendChild(logo);
+    } else {
+      logoLink.appendChild(createLocalImage(root, "logo-img", ASSET_KEYS.BANNER_LOGO, "哔哩哔哩"));
+    }
     logoWrap.appendChild(logoLink);
     banner.appendChild(animated);
     banner.appendChild(taper);
@@ -6854,8 +6868,8 @@
     return banner;
   };
 
-  // Parallax runtime: ported from prototype/homepage/index.html:7688-7844.
-  // Sizes each layer's media by banner.clientHeight/155 scaleBase, then translates on mouse move.
+  // Parallax runtime follows the official DynamicBannerRenderer motion path.
+  // Legacy v1 packages without data-motion keep the older translate-only path.
   const bindBannerParallax = (root, banner, listenerCleanups, isRendererActive) => {
     if (!banner) { return; }
     const doc = root.ownerDocument;
@@ -6863,6 +6877,103 @@
     if (!view) { return; }
     const layerNodes = Array.prototype.slice.call(banner.querySelectorAll(".animated-banner > .banner-layer-item"));
     if (!layerNodes.length) { return; }
+    const identityCurve = (value) => value;
+    const calcA = (a1, a2) => 1 - 3 * a2 + 3 * a1;
+    const calcB = (a1, a2) => 3 * a2 - 6 * a1;
+    const calcC = (a1) => 3 * a1;
+    const calcBezier = (value, a1, a2) => ((calcA(a1, a2) * value + calcB(a1, a2)) * value + calcC(a1)) * value;
+    const getSlope = (value, a1, a2) => 3 * calcA(a1, a2) * value * value + 2 * calcB(a1, a2) * value + calcC(a1);
+    const binarySubdivide = (x, a, b, mX1, mX2) => {
+      let currentT = a + (b - a) / 2;
+      let currentX = calcBezier(currentT, mX1, mX2) - x;
+      let iterations = 0;
+      while (Math.abs(currentX) > 1e-7 && ++iterations < 10) {
+        if (currentX > 0) b = currentT; else a = currentT;
+        currentT = a + (b - a) / 2;
+        currentX = calcBezier(currentT, mX1, mX2) - x;
+      }
+      return currentT;
+    };
+    const newtonRaphsonIterate = (x, guessT, mX1, mX2) => {
+      for (let index = 0; index < 4; index += 1) {
+        const slope = getSlope(guessT, mX1, mX2);
+        if (slope === 0) return guessT;
+        guessT -= (calcBezier(guessT, mX1, mX2) - x) / slope;
+      }
+      return guessT;
+    };
+    const makeCurve = (curve) => {
+      if (!Array.isArray(curve) || curve.length !== 4
+        || !curve.every((value) => typeof value === "number" && Number.isFinite(value))) return identityCurve;
+      const [mX1, mY1, mX2, mY2] = curve;
+      if (mX1 < 0 || mX1 > 1 || mX2 < 0 || mX2 > 1) return identityCurve;
+      if (mX1 === mY1 && mX2 === mY2) return identityCurve;
+      const sampleValues = new Float32Array(11);
+      for (let index = 0; index < 11; index += 1) sampleValues[index] = calcBezier(index / 10, mX1, mX2);
+      const getTForX = (x) => {
+        let intervalStart = 0;
+        let currentSample = 1;
+        const lastSample = 10;
+        for (; currentSample !== lastSample && sampleValues[currentSample] <= x; currentSample += 1) {
+          intervalStart += 0.1;
+        }
+        --currentSample;
+        const sampleDelta = sampleValues[currentSample + 1] - sampleValues[currentSample];
+        const dist = sampleDelta === 0 ? 0 : (x - sampleValues[currentSample]) / sampleDelta;
+        const guessT = intervalStart + dist * 0.1;
+        const slope = getSlope(guessT, mX1, mX2);
+        if (slope >= 1e-3) return newtonRaphsonIterate(x, guessT, mX1, mX2);
+        if (slope === 0) return guessT;
+        return binarySubdivide(x, intervalStart, intervalStart + 0.1, mX1, mX2);
+      };
+      const bezier = (value) => value === 0 || value === 1 ? value : calcBezier(getTForX(value), mY1, mY2);
+      return (value) => value > 0 ? bezier(value) : -bezier(-value);
+    };
+    const numberOr = (value, fallback) => typeof value === "number" && Number.isFinite(value) ? value : fallback;
+    const parseMotion = (layer) => {
+      const raw = layer.getAttribute("data-motion");
+      if (!raw) return null;
+      try {
+        const value = JSON.parse(raw);
+        if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+        const keys = Object.keys(value).sort().join("\u001F");
+        if (keys === "a\u001Fdeg\u001Ff\u001Fg\u001Fopacity"
+          && Number.isFinite(value.a) && Number.isFinite(value.g)
+          && Number.isFinite(value.f) && Number.isFinite(value.deg)
+          && Array.isArray(value.opacity) && value.opacity.length === 2
+          && value.opacity.every((entry) => Number.isFinite(entry))) {
+          return {
+            kind: "palxiao",
+            a: value.a,
+            g: value.g,
+            f: value.f,
+            deg: value.deg,
+            opacity: value.opacity
+          };
+        }
+        return {
+          kind: "official",
+          scaleOffset: numberOr(value.scaleOffset, 0),
+          rotateOffset: numberOr(value.rotateOffset, 0),
+          blurOffset: numberOr(value.blurOffset, 0),
+          opacityOffset: numberOr(value.opacityOffset, 0),
+          blurWrap: value.blurWrap === "alternate" ? "alternate" : "clamp",
+          opacityWrap: value.opacityWrap === "alternate" ? "alternate" : "clamp",
+          scaleCurve: makeCurve(value.scaleCurve),
+          rotateCurve: makeCurve(value.rotateCurve),
+          translateCurve: makeCurve(value.translateCurve),
+          blurCurve: makeCurve(value.blurCurve),
+          opacityCurve: makeCurve(value.opacityCurve)
+        };
+      } catch (_) {
+        return null;
+      }
+    };
+    const alternateOpacity = (value) => {
+      let folded = Math.abs(value % 1);
+      if (Math.abs(value % 2) >= 1) folded = 1 - folded;
+      return folded;
+    };
     const layers = layerNodes.map((layer) => {
       const media = layer.querySelector("img, video");
       if (media && media.tagName === "VIDEO") {
@@ -6871,8 +6982,18 @@
       return {
         node: layer,
         media,
+        baseTransform: (() => {
+          try {
+            const value = JSON.parse(layer.getAttribute("data-transform") || "null");
+            return Array.isArray(value) && value.length === 6 && value.every((entry) => Number.isFinite(entry))
+              ? value.slice() : [1, 0, 0, 1, Number(layer.getAttribute("data-init-x")) || 0, Number(layer.getAttribute("data-init-y")) || 0];
+          } catch (_) {
+            return [1, 0, 0, 1, Number(layer.getAttribute("data-init-x")) || 0, Number(layer.getAttribute("data-init-y")) || 0];
+          }
+        })(),
         width: Number((media && media.getAttribute("data-width")) || 1920),
         height: Number((media && media.getAttribute("data-height")) || 180),
+        sizeMode: layer.getAttribute("data-size-mode") || "declared",
         scale: Number(layer.getAttribute("data-scale")) || 1,
         initX: Number(layer.getAttribute("data-init-x")) || 0,
         initY: Number(layer.getAttribute("data-init-y")) || 0,
@@ -6880,13 +7001,32 @@
         offsetY: Number(layer.getAttribute("data-offset-y")) || 0,
         rotate: Number(layer.getAttribute("data-rotate")) || 0,
         blur: Number(layer.getAttribute("data-blur")) || 0,
-        opacity: layer.getAttribute("data-opacity") != null ? Number(layer.getAttribute("data-opacity")) : 1
+        opacity: layer.getAttribute("data-opacity") != null ? Number(layer.getAttribute("data-opacity")) : 1,
+        motion: parseMotion(layer)
       };
     });
+    const syncIntrinsicSize = (layer, reflow = true) => {
+      if (!layer.media || layer.sizeMode !== "intrinsic") return;
+      const intrinsicWidth = Number(layer.media.naturalWidth || layer.media.videoWidth) || 0;
+      const intrinsicHeight = Number(layer.media.naturalHeight || layer.media.videoHeight) || 0;
+      if (intrinsicWidth > 0 && intrinsicHeight > 0) {
+        layer.width = intrinsicWidth;
+        layer.height = intrinsicHeight;
+        if (reflow) measureLayout(true);
+      }
+    };
+    for (const layer of layers) {
+      if (!layer.media || layer.sizeMode !== "intrinsic") continue;
+      const loadedEvent = layer.media.tagName === "VIDEO" ? "loadedmetadata" : "load";
+      addListenerWithCleanup(layer.media, loadedEvent, () => syncIntrinsicSize(layer), listenerCleanups);
+    }
     let bannerWidth = banner.clientWidth;
     let bannerHeight = banner.clientHeight;
     let scaleBase = bannerHeight > 0 ? bannerHeight / 155 : 1;
-    let layoutReady = bannerWidth > 0 && bannerHeight > 0;
+    let viewportCompensate = 1;
+    // The first pass must size declared package layers even when the host is
+    // already mounted; intrinsic media events are not the package layout source.
+    let layoutReady = false;
     let startX = 0;
     let hasStart = false;
     let displace = 0;
@@ -6896,15 +7036,67 @@
     let resetFrame = 0;
     let pointerInBanner = false;
     const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-    const render = (value) => {
+    const lerp = (start, end, amount) => (1 - amount) * start + amount * end;
+    const multiplyMatrix = (left, right) => [
+      left[0] * right[0] + left[2] * right[1],
+      left[1] * right[0] + left[3] * right[1],
+      left[0] * right[2] + left[2] * right[3],
+      left[1] * right[2] + left[3] * right[3],
+      left[0] * right[4] + left[2] * right[5] + left[4],
+      left[1] * right[4] + left[3] * right[5] + left[5]
+    ];
+    const matrixCss = (value) => `matrix(${value.map((entry) => Number.isFinite(entry) ? Number(entry.toFixed(6)) : 1).join(", ")})`;
+    const render = (value, isHoming = false, homingProgress = 0, homingFrom = value) => {
       if (!isRendererActive()) { return; }
       displace = value;
       for (const layer of layers) {
         if (!layer.media) { continue; }
-        const x = (layer.initX + layer.offsetX * value) * scaleBase;
-        const y = (layer.initY + layer.offsetY * value) * scaleBase;
-        const rotate = layer.rotate * value;
-        layer.media.style.transform = `translate3d(${x}px,${y}px,0) rotate(${rotate}deg)`;
+        const motion = layer.motion;
+        if (motion && motion.kind === "palxiao") {
+          const base = layer.baseTransform.slice();
+          base[4] *= viewportCompensate;
+          base[5] *= viewportCompensate;
+          const move = value * motion.a;
+          const scale = motion.f ? motion.f * value + 1 : 1;
+          const gravity = value * motion.g;
+          let matrix = multiplyMatrix(base, [base[0] * scale, base[1], base[2], base[3] * scale, move, gravity]);
+          if (motion.deg) {
+            const angle = motion.deg * value;
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+            matrix = multiplyMatrix(matrix, [cos, sin, -sin, cos, 0, 0]);
+          }
+          if (layer.node.style) layer.node.style.transform = matrixCss(matrix);
+          const opacityProgress = (value / (Number(view.innerWidth) || bannerWidth || 1650)) * 2;
+          const opacity = isHoming && homingFrom > 0
+            ? lerp(motion.opacity[1], motion.opacity[0], homingProgress)
+            : lerp(motion.opacity[0], motion.opacity[1], opacityProgress);
+          if (layer.node.style) layer.node.style.opacity = String(opacity);
+          layer.media.style.filter = layer.blur ? `blur(${layer.blur}px)` : "";
+          continue;
+        }
+        const dynamicScale = motion ? 1 + motion.scaleOffset * motion.scaleCurve(value) : 1;
+        const rotate = motion ? motion.rotateOffset * motion.rotateCurve(value) : layer.rotate * value;
+        const translateCurve = motion ? motion.translateCurve(value) : value;
+        const initialScale = motion ? layer.scale : 1;
+        const x = (layer.initX + layer.offsetX * translateCurve) * scaleBase * initialScale;
+        const y = (layer.initY + layer.offsetY * translateCurve) * scaleBase * initialScale;
+        layer.media.style.transform = `translate(${x}px, ${y}px) rotate(${rotate}deg) scale(${dynamicScale})`;
+        if (motion) {
+          if (layer.blur) {
+            const blur = Math.max(0, layer.blur + motion.blurOffset * motion.blurCurve(value));
+            layer.media.style.filter = blur < 1e-4 ? "" : `blur(${blur}px)`;
+          } else {
+            layer.media.style.filter = "";
+          }
+          if (layer.opacity) {
+            const opacityValue = layer.opacity + motion.opacityOffset * motion.opacityCurve(value);
+            const opacity = motion.opacityWrap === "alternate"
+              ? alternateOpacity(opacityValue)
+              : Math.max(0, Math.min(1, opacityValue));
+            layer.media.style.opacity = String(opacity);
+          }
+        }
       }
     };
     const scheduleRender = () => {
@@ -6928,12 +7120,17 @@
       bannerWidth = nextWidth;
       bannerHeight = nextHeight;
       scaleBase = bannerHeight / 155;
+      const viewportWidth = Number(view.innerWidth) || bannerWidth || 1650;
+      viewportCompensate = viewportWidth > 1650 ? viewportWidth / 1650 : 1;
       layoutReady = true;
       if (needsMediaLayout) {
         for (const layer of layers) {
           if (!layer.media) { continue; }
-          const w = layer.width * scaleBase * layer.scale;
-          const h = layer.height * scaleBase * layer.scale;
+          const mediaScale = layer.motion && layer.motion.kind === "palxiao"
+            ? viewportCompensate
+            : scaleBase * layer.scale;
+          const w = layer.width * mediaScale;
+          const h = layer.height * mediaScale;
           layer.media.style.width = `${w}px`;
           layer.media.style.height = `${h}px`;
           layer.media.style.opacity = String(layer.opacity);
@@ -6962,13 +7159,12 @@
       const from = displace;
       if (Math.abs(from) <= 0.001) { render(0); return; }
       const startedAt = view.performance.now();
-      const duration = 200;
+      const duration = layers.some((layer) => layer.motion && layer.motion.kind === "palxiao") ? 300 : 200;
       const tick = (now) => {
         if (!isRendererActive()) { return; }
         const progress = clamp((now - startedAt) / duration, 0, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        if (progress >= 1) { render(0); resetFrame = 0; return; }
-        render(from * (1 - eased));
+        if (progress >= 1) { render(0, true, 1, from); resetFrame = 0; return; }
+        render(from * (1 - progress), true, progress, from);
         resetFrame = view.requestAnimationFrame(tick);
       };
       resetFrame = view.requestAnimationFrame(tick);
@@ -6995,10 +7191,12 @@
       pointerInBanner = true;
       if (resetFrame) { view.cancelAnimationFrame(resetFrame); resetFrame = 0; }
       if (!hasStart) { startX = event.clientX; hasStart = true; }
-      const normalizedDisplace = bannerWidth > 0 ? (event.clientX - startX) / bannerWidth : 0;
-      targetDisplace = clamp(normalizedDisplace, -0.45, 0.45);
+      const deltaX = event.clientX - startX;
+      const usesPixelDisplacement = layers.some((layer) => layer.motion && layer.motion.kind === "palxiao");
+      targetDisplace = usesPixelDisplacement || bannerWidth <= 0 ? deltaX : deltaX / bannerWidth;
       scheduleRender();
     };
+    for (const layer of layers) syncIntrinsicSize(layer, false);
     measureLayout();
     const moveListenerOptions = { passive: true, capture: true };
     addListenerWithCleanup(doc, "pointermove", handleMove, listenerCleanups, moveListenerOptions);
@@ -7015,6 +7213,14 @@
       listenerCleanups.push(() => observer.disconnect());
     }
     listenerCleanups.push(() => {
+      for (const layer of layers) {
+        if (!layer.media || layer.media.tagName !== "VIDEO") continue;
+        try { layer.media.pause(); } catch (_) {}
+        try {
+          layer.media.removeAttribute("src");
+          if (typeof layer.media.load === "function") layer.media.load();
+        } catch (_) {}
+      }
       if (moveFrame) {
         try { view.cancelAnimationFrame(moveFrame); } catch (_) {}
         moveFrame = 0;
@@ -10219,7 +10425,7 @@
 
     const homepage = createNode(root, "div", "homepage");
     const headerView = createHeader(root, rendererLifecycle);
-    const banner = createBanner(root);
+    let banner = createBanner(root, BUILTIN_BANNER_MODEL);
     const menu = createPrimaryMenu(root, rendererLifecycle);
     const firstScreen = createNode(root, "section", "first-screen b-wrap");
     const firstScreenSpace = createNode(root, "div", "space-between report-wrap-module");
@@ -10553,12 +10759,37 @@
     // `root.querySelector('[data-floor-id=...]')` returns null for every floor and the
     // active-floor tracking never fires.
     bindElevator(root, elevatorView, footer, headerView.popoverGroups, listenerCleanups, isRendererActive);
-    bindBannerParallax(root, banner, listenerCleanups, isRendererActive);
+    let bannerGeneration = 0;
+    let bannerParallaxCleanups = [];
+    const bindCurrentBannerParallax = () => {
+      cleanupListeners(bannerParallaxCleanups);
+      bannerParallaxCleanups = [];
+      bindBannerParallax(root, banner, bannerParallaxCleanups, isRendererActive);
+    };
+    bindCurrentBannerParallax();
+    listenerCleanups.push(() => cleanupListeners(bannerParallaxCleanups));
+    const bannerController = {
+      get root() { return banner; },
+      get generation() { return bannerGeneration; },
+      setModel(model, assetMap = null, generation = null) {
+        if (!isRendererActive() || !isRenderableBannerModel(model)) return false;
+        if (Number.isSafeInteger(generation) && generation < bannerGeneration) return false;
+        bannerGeneration = Number.isSafeInteger(generation) ? generation : bannerGeneration + 1;
+        const nextBanner = createBanner(root, model, assetMap);
+        if (!nextBanner || !banner.parentNode) return false;
+        banner.parentNode.replaceChild(nextBanner, banner);
+        banner = nextBanner;
+        bindCurrentBannerParallax();
+        return true;
+      }
+    };
 
     setAuthStatus(headerView.statusText, headerView.statusPanel, authStatus);
     return {
       statusText: headerView.statusText,
       statusPanel: headerView.statusPanel,
+      banner: bannerController,
+      setBannerModel: (model, assetMap = null, generation = null) => bannerController.setModel(model, assetMap, generation),
       signin: headerView.signin,
       summaryPanels: headerView.summaryPanels,
       messagePanel: headerView.messagePanel,
@@ -10606,6 +10837,8 @@
         }
         rendererLease.active = false;
         destroyed = true;
+        cleanupListeners(bannerParallaxCleanups);
+        bannerParallaxCleanups = [];
         focusView.destroyed = true;
         recommendationView.destroyed = true;
         if (live.__liveFloorView) live.__liveFloorView.destroyed = true;
@@ -10893,6 +11126,8 @@
     resolveImage,
     resolveAssetKey,
     ASSET_KEYS,
+    BUILTIN_BANNER_MODEL,
+    isBannerModel: isRenderableBannerModel,
     validateCategoryUseUrl,
     captureCategorySpriteUrl,
     resolveCategoryUseUrl,
