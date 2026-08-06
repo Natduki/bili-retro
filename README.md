@@ -2,7 +2,7 @@
 
 `bili-retro` 是一个 Chrome Manifest V3 扩展，用于在哔哩哔哩首页恢复旧版首页布局与交互。
 
-当前版本：`0.2.66`
+当前版本：`0.2.67`
 
 扩展只接管以下精确地址：
 
@@ -123,7 +123,7 @@ Host permissions：
 
 ## 当前状态
 
-`0.2.66` 新增 BannerModel、官方 Banner 自动接入、本地 `.brbanner` 导入、预览、应用、删除及本地包轮换。Banner 包以独立 Release asset 发布，不包含在扩展本体中。
+`0.2.67` 新增 BannerModel、官方 Banner 自动接入、本地 `.brbanner` 导入、预览、应用、删除及本地包轮换。Banner 包以独立 Release asset 发布，不包含在扩展本体中。
 
 
 
