@@ -4,7 +4,7 @@
   const ROOT_URL = "https://www.bilibili.com/";
   const HOST_ID = "extension-b-stage-2-host";
   const BUILD_MARKER = "stage-11-banner-import-r21";
-  const EXTENSION_VERSION = "0.2.66";
+  const EXTENSION_VERSION = "0.2.67";
   const STYLE_ID = "extension-b-stage-2-hide-style";
   const URL_POLL_MS = 250;
   const BODY_WAIT_MS = 50;
