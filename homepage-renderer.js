@@ -1356,6 +1356,10 @@
 
   /* Form B parity baseline: dimensions are tied to the measured prototype breakpoints. */
   .homepage { position: relative; }
+  :host([data-bili-retro-full-page-capture]) *, :host([data-bili-retro-full-page-capture]) *::before, :host([data-bili-retro-full-page-capture]) *::after { animation-play-state: paused !important; scroll-behavior: auto !important; transition-duration: 0s !important; }
+  :host([data-bili-retro-full-page-capture="continuation"]) .international-header,
+  :host([data-bili-retro-full-page-capture="continuation"]) .elevator,
+  :host([data-bili-retro-full-page-capture="continuation"]) .contact-help { visibility: hidden !important; }
   .b-wrap, .container, .storey-box, .mini-header__content { width: min(1630px, calc(100% - 48px)); }
   .international-header { position: absolute; top: 0; left: 0; width: 100%; height: 56px; z-index: 30; }
   .mini-header, .mini-header__content { height: 56px; }
@@ -1398,7 +1402,7 @@
   #reportFirst2[data-floor-id="promote"] { min-height: 71px; margin-top: 30px; }
   .storey-box:not([data-floor-id="promote"]) { min-height: 457px; }
   .floor-layout { grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; }
-  .ordinary-floor .zone-list-box { width: min(100%, 1070px); grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+  .ordinary-floor .zone-list-box { width: 1286px; grid-template-columns: repeat(6, minmax(0, 206px)); justify-content: space-between; gap: 24px 10px; }
   .ordinary-floor .video-card-common { width: 100%; min-height: 192px; }
   .ordinary-floor .card-pic { width: 100%; aspect-ratio: 16 / 9; }
   .ordinary-floor .card-pic > img { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -1586,12 +1590,14 @@
   #bili_report_cheese .cheese-rank-popover .rank-video-popover__stat .douga-metric-icon { width: 16px; height: 16px; margin-right: 4px; }
   @media (max-width: 1870px) {
     .b-wrap, .container, .storey-box, .mini-header__content { width: 1414px; max-width: calc(100% - 40px); }
+    .ordinary-floor .zone-list-box { width: 1070px; grid-template-columns: repeat(5, minmax(0, 206px)); }
+    .ordinary-floor .zone-list-box > .video-card-common:nth-child(n + 11) { display: none; }
   }
   @media (max-width: 1654px) {
     .b-wrap, .container, .storey-box, .mini-header__content { width: 1198px; max-width: calc(100% - 32px); }
     #bili_report_douga .zone-list-box > .video-card-common:nth-child(n + 9) { display: none; }
     #bili_report_douga .video-card-common { width: calc((100% - 30px) / 4); flex-basis: calc((100% - 30px) / 4); }
-    .ordinary-floor .zone-list-box { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .ordinary-floor .zone-list-box { width: 854px; grid-template-columns: repeat(5, minmax(0, 162px)); }
     .ordinary-floor .rank-list,
     .ordinary-floor .rank-header,
     .ordinary-floor .custom-rank-wrap { width: 320px; }
@@ -1622,6 +1628,8 @@
     .ordinary-floor .custom-rank-wrap > .link,
     .ordinary-floor .custom-rank-wrap .preview { width: 235px; }
     .ordinary-floor .custom-rank-wrap .preview .txt { width: 111px; }
+    .ordinary-floor .zone-list-box { width: 710px; grid-template-columns: repeat(4, minmax(0, 170px)); }
+    .ordinary-floor .zone-list-box > .video-card-common:nth-child(n + 9) { display: none; }
   }
   .international-footer { min-height: 454px; margin-top: 54px; padding: 42px 0 54px; }
   .international-footer .link-box { min-height: 180px; }
@@ -1684,8 +1692,9 @@
     .focus-carousel { width: 550px; height: 242px; }
     .rcmd-box-wrap, .rcmd-box { height: 242px; }
     .rcmd-box { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .ordinary-floor .zone-list-box > .video-card-common:nth-child(n + 9) { display: none; }
-    .ordinary-floor .zone-list-box { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .ordinary-floor .zone-list-box > .video-card-common:nth-child(n + 9) { display: block; }
+    .ordinary-floor .zone-list-box > .video-card-common:nth-child(n + 11) { display: none; }
+    .ordinary-floor .zone-list-box { width: 854px; grid-template-columns: repeat(5, minmax(0, 162px)); }
     .ordinary-pgc-floor .zone-list-box { grid-template-columns: repeat(5, minmax(0, 162px)); }
     .ordinary-pgc-floor .zone-list-box > .ordinary-pgc-card:nth-child(n + 9) { display: block; }
     .ordinary-pgc-floor .zone-list-box > .ordinary-pgc-card:nth-child(n + 11) { display: none; }
@@ -1708,6 +1717,8 @@
     #bili_report_read .rank-wrap > .link, #bili_report_read .rank-wrap .preview, #bili_report_read .rank-wrap .title { width: 235px; }
     #bili_report_read .rank-wrap .preview .txt { width: 111px; }
     .ordinary-floor .video-card-common { min-height: 172px; }
+    .ordinary-floor .zone-list-box { width: 710px; grid-template-columns: repeat(4, minmax(0, 170px)); }
+    .ordinary-floor .zone-list-box > .video-card-common:nth-child(n + 9) { display: none; }
     .international-footer { min-height: 478px; }
   }
   @media (max-width: 980px) {
@@ -9260,7 +9271,7 @@
         ? value.ranks.every(isOrdinaryZoneVideoRank)
         : value.rankType === "cheese" ? value.ranks.every(isOrdinaryZoneCheeseRank)
         : value.ranks.every(isOrdinaryZonePgcRank));
-  const createOrdinarySkeletonItems = (type, count = 10) => {
+  const createOrdinarySkeletonItems = (type, count = 12) => {
     const definition = ORDINARY_ZONE_DEFINITIONS[type];
     const isPgcFloor = type === "movie" || type === "teleplay" || type === "documentary";
     return Array.from({ length: count }, (_, index) => {

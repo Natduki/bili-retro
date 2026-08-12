@@ -2,7 +2,11 @@
   "use strict";
 
   const MESSAGE_TYPE = "BILI_RETRO_DIAGNOSTICS_GET_V1";
+  const SCREENSHOT_MESSAGE_TYPE = "BILI_RETRO_FULL_PAGE_SCREENSHOT_V1";
   const POLL_INTERVAL_MS = 1500;
+  const CAPTURE_INTERVAL_MS = 550;
+  const MAX_CANVAS_DIMENSION = 32767;
+  const MAX_CANVAS_AREA = 64 * 1024 * 1024;
   const STATUS_CLASSES = Object.freeze({ healthy: "green", pending: "yellow", failed: "red", unknown: "gray" });
   const OPERATION_LABELS = Object.freeze({
     AUTH_STATUS: "登录状态", PROFILE_STATS: "用户资料", MESSAGE_SUMMARY: "消息摘要", DYNAMIC_SUMMARY: "动态摘要",
@@ -35,6 +39,7 @@
   let latestSnapshot = null;
   let activeTab = null;
   let pollTimer = 0;
+  let exportInProgress = false;
   let bannerSnapshot = { settings:{ source:"official", packageId:null, rotation:"manual" }, packages:[] };
 
   const classifyStatus = (value) => {
@@ -265,13 +270,84 @@
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  const captureScreenshot = async () => {
-    if (!includeScreenshot.checked || !activeTab || !Number.isInteger(activeTab.windowId)) return null;
-    return chrome.tabs.captureVisibleTab(activeTab.windowId, { format:"png" });
+  const sleep = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+  const screenshotMessage = (payload) => chrome.tabs.sendMessage(activeTab.id, {
+    type:SCREENSHOT_MESSAGE_TYPE,
+    ...payload
+  });
+  const loadCaptureImage = (dataUrl) => new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("IMAGE"));
+    image.src = dataUrl;
+  });
+  const canvasBlob = (canvas) => new Promise((resolve, reject) => canvas.toBlob(
+    (blob) => blob ? resolve(blob) : reject(new Error("ENCODE")),
+    "image/png"
+  ));
+  const sha256Blob = async (blob) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await blob.arrayBuffer())))
+    .map((value) => value.toString(16).padStart(2, "0")).join("");
+  const captureFullPageScreenshot = async (stamp) => {
+    if (!includeScreenshot.checked || !activeTab || !Number.isInteger(activeTab.id)
+      || !Number.isInteger(activeTab.windowId)) return null;
+    const sessionId = `${Date.now().toString(36)}_${crypto.randomUUID().replace(/-/g, "")}`;
+    let prepared = false;
+    try {
+      const dimensions = await screenshotMessage({ action:"prepare", sessionId });
+      if (!dimensions || dimensions.ok !== true || dimensions.pageHeight <= 0 || dimensions.viewportHeight <= 0) throw new Error("PREPARE");
+      prepared = true;
+      const positions = [];
+      const maximumY = Math.max(0, dimensions.pageHeight - dimensions.viewportHeight);
+      for (let y = 0; y < maximumY; y += dimensions.viewportHeight) positions.push(y);
+      if (positions.length === 0 || positions.at(-1) !== maximumY) positions.push(maximumY);
+      let canvas = null;
+      let context = null;
+      let pixelRatio = 1;
+      let outputScale = 1;
+      for (let index = 0; index < positions.length; index += 1) {
+        exportStatus.textContent = `正在截取第 ${index + 1}/${positions.length} 屏`;
+        const position = await screenshotMessage({ action:"scroll", sessionId, targetY:positions[index], first:index === 0 });
+        if (!position || position.ok !== true) throw new Error("SCROLL");
+        if (index > 0) await sleep(CAPTURE_INTERVAL_MS);
+        const dataUrl = await chrome.tabs.captureVisibleTab(activeTab.windowId, { format:"png" });
+        const image = await loadCaptureImage(dataUrl);
+        if (!canvas) {
+          pixelRatio = image.width / dimensions.viewportWidth;
+          const rawWidth = image.width;
+          const rawHeight = Math.ceil(dimensions.pageHeight * pixelRatio);
+          outputScale = Math.min(1, MAX_CANVAS_DIMENSION / rawWidth, MAX_CANVAS_DIMENSION / rawHeight,
+            Math.sqrt(MAX_CANVAS_AREA / (rawWidth * rawHeight)));
+          canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.floor(rawWidth * outputScale));
+          canvas.height = Math.max(1, Math.floor(rawHeight * outputScale));
+          context = canvas.getContext("2d", { alpha:false });
+          if (!context) throw new Error("CANVAS");
+          context.fillStyle = "#fff";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        const destinationY = Math.round(position.scrollY * pixelRatio * outputScale);
+        const destinationHeight = Math.min(Math.round(image.height * outputScale), canvas.height - destinationY);
+        if (destinationHeight > 0) context.drawImage(image, 0, 0, image.width,
+          Math.min(image.height, Math.ceil(destinationHeight / outputScale)), 0, destinationY, canvas.width, destinationHeight);
+      }
+      const blob = await canvasBlob(canvas);
+      const filename = `bili-retro-screenshot-${stamp}.png`;
+      return {
+        blob,
+        metadata: {
+          status:"complete", filename, cssWidth:dimensions.pageWidth, cssHeight:dimensions.pageHeight,
+          pixelWidth:canvas.width, pixelHeight:canvas.height, devicePixelRatio:dimensions.devicePixelRatio,
+          capturePixelRatio:pixelRatio, scale:outputScale, segmentCount:positions.length,
+          sha256:await sha256Blob(blob), error:""
+        }
+      };
+    } finally {
+      if (prepared) await screenshotMessage({ action:"restore", sessionId }).catch(() => {});
+    }
   };
 
   const diagnosticBase = () => ({
-    reportVersion:1,
+    reportVersion:2,
     exportedAt:new Date().toISOString(),
     userDescription:feedbackText.value.trim(),
     snapshot:latestSnapshot
@@ -300,21 +376,26 @@
   };
 
   const exportBundle = async () => {
+    if (exportInProgress) return;
     if (!latestSnapshot) await refresh();
     if (!latestSnapshot) { exportStatus.textContent = "当前标签没有可导出的诊断数据"; return; }
+    exportInProgress = true;
+    byId("exportBundleButton").disabled = true;
     exportStatus.textContent = "正在生成诊断包";
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     try {
-      const screenshot = await captureScreenshot();
-      const report = { ...diagnosticBase(), screenshotIncluded:Boolean(screenshot), screenshotDataUrl:screenshot };
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const screenshot = await captureFullPageScreenshot(stamp);
+      const report = { ...diagnosticBase(), screenshotIncluded:Boolean(screenshot), screenshot:screenshot ? screenshot.metadata : null };
       downloadBlob(`bili-retro-diagnostics-${stamp}.json`, "application/json", JSON.stringify(report, null, 2));
-      if (screenshot) {
-        const response = await fetch(screenshot);
-        downloadBlob(`bili-retro-screenshot-${stamp}.png`, "image/png", await response.blob());
-      }
+      if (screenshot) downloadBlob(screenshot.metadata.filename, "image/png", screenshot.blob);
       exportStatus.textContent = "诊断包已导出";
-    } catch {
+    } catch (error) {
+      const report = { ...diagnosticBase(), screenshotIncluded:includeScreenshot.checked, screenshot:{ status:"failed", filename:"", error:error && error.message ? error.message : "CAPTURE" } };
+      downloadBlob(`bili-retro-diagnostics-${stamp}.json`, "application/json", JSON.stringify(report, null, 2));
       exportStatus.textContent = "诊断包导出失败";
+    } finally {
+      exportInProgress = false;
+      byId("exportBundleButton").disabled = false;
     }
   };
 

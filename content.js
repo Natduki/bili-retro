@@ -4,7 +4,7 @@
   const ROOT_URL = "https://www.bilibili.com/";
   const HOST_ID = "extension-b-stage-2-host";
   const BUILD_MARKER = "stage-11-banner-import-r21";
-  const EXTENSION_VERSION = "0.2.67";
+  const EXTENSION_VERSION = "0.2.68";
   const STYLE_ID = "extension-b-stage-2-hide-style";
   const URL_POLL_MS = 250;
   const BODY_WAIT_MS = 50;
@@ -44,10 +44,13 @@
   const LOGOUT_OPERATION = "LOGOUT";
   const PROFILE_STATS_OPERATION = "PROFILE_STATS";
   const DIAGNOSTICS_MESSAGE_TYPE = "BILI_RETRO_DIAGNOSTICS_GET_V1";
+  const SCREENSHOT_MESSAGE_TYPE = "BILI_RETRO_FULL_PAGE_SCREENSHOT_V1";
   const DIAGNOSTICS_SCHEMA_VERSION = 1;
   const DIAGNOSTICS_ERROR_LIMIT = 100;
+  const SCREENSHOT_SESSION_TIMEOUT_MS = 180000;
   const diagnosticOperations = new Map();
   const diagnosticErrors = [];
+  let screenshotSession = null;
   const diagnosticNow = () => Date.now();
   const diagnosticClock = () => globalThis.performance && typeof globalThis.performance.now === "function"
     ? globalThis.performance.now()
@@ -4160,6 +4163,97 @@
     });
   };
 
+  const screenshotResponse = (ok, payload = {}) => Object.freeze({ ok, ...payload });
+  const setScreenshotCaptureMode = (mode = null) => {
+    const host = lifecycle && lifecycle.host && lifecycle.host.isConnected
+      ? lifecycle.host
+      : document.getElementById(HOST_ID);
+    if (!host) return false;
+    if (mode === null) host.removeAttribute("data-bili-retro-full-page-capture");
+    else host.setAttribute("data-bili-retro-full-page-capture", mode);
+    return true;
+  };
+  const restoreScreenshotSession = (sessionId = null) => {
+    const session = screenshotSession;
+    if (!session || (sessionId !== null && session.id !== sessionId)) return false;
+    screenshotSession = null;
+    globalThis.clearTimeout(session.timeout);
+    document.documentElement.style.scrollBehavior = session.scrollBehavior;
+    setScreenshotCaptureMode();
+    globalThis.scrollTo(session.scrollX, session.scrollY);
+    for (const video of session.playingVideos) {
+      if (video && video.isConnected && typeof video.play === "function") video.play().catch(() => {});
+    }
+    return true;
+  };
+  const waitScreenshotFrame = () => new Promise((resolve) => globalThis.requestAnimationFrame(
+    () => globalThis.requestAnimationFrame(resolve)
+  ));
+  const waitVisibleImages = async () => {
+    const viewportHeight = Math.max(1, globalThis.innerHeight);
+    const images = Array.from(document.images).filter((image) => {
+      const rect = image.getBoundingClientRect();
+      return rect.bottom > 0 && rect.top < viewportHeight && !image.complete;
+    }).slice(0, 100);
+    if (images.length === 0) return;
+    const settled = Promise.allSettled(images.map((image) => (
+      typeof image.decode === "function" ? image.decode() : Promise.resolve()
+    )));
+    await Promise.race([settled, new Promise((resolve) => globalThis.setTimeout(resolve, 1500))]);
+  };
+  const prepareScreenshotSession = async (sessionId) => {
+    restoreScreenshotSession();
+    const scrollingElement = document.scrollingElement || document.documentElement;
+    const playingVideos = Array.from(document.querySelectorAll("video")).filter((video) => !video.paused);
+    for (const video of playingVideos) video.pause();
+    screenshotSession = {
+      id: sessionId,
+      scrollX: globalThis.scrollX,
+      scrollY: globalThis.scrollY,
+      scrollBehavior: document.documentElement.style.scrollBehavior,
+      playingVideos,
+      timeout: 0
+    };
+    screenshotSession.timeout = globalThis.setTimeout(() => restoreScreenshotSession(sessionId), SCREENSHOT_SESSION_TIMEOUT_MS);
+    document.documentElement.style.scrollBehavior = "auto";
+    if (!setScreenshotCaptureMode("first")) {
+      restoreScreenshotSession(sessionId);
+      return screenshotResponse(false, { error: "HOST" });
+    }
+    globalThis.scrollTo(0, 0);
+    await waitScreenshotFrame();
+    await waitVisibleImages();
+    return screenshotResponse(true, {
+      sessionId,
+      pageWidth: Math.max(scrollingElement.scrollWidth, document.documentElement.scrollWidth, document.body ? document.body.scrollWidth : 0),
+      pageHeight: Math.max(scrollingElement.scrollHeight, document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0),
+      viewportWidth: globalThis.innerWidth,
+      viewportHeight: globalThis.innerHeight,
+      devicePixelRatio: globalThis.devicePixelRatio || 1,
+      scrollX: globalThis.scrollX,
+      scrollY: globalThis.scrollY
+    });
+  };
+  const scrollScreenshotSession = async (sessionId, targetY, first) => {
+    if (!screenshotSession || screenshotSession.id !== sessionId) return screenshotResponse(false, { error: "SESSION" });
+    if (!setScreenshotCaptureMode(first ? "first" : "continuation")) {
+      restoreScreenshotSession(sessionId);
+      return screenshotResponse(false, { error: "HOST" });
+    }
+    globalThis.scrollTo(0, targetY);
+    await waitScreenshotFrame();
+    await waitVisibleImages();
+    const scrollingElement = document.scrollingElement || document.documentElement;
+    return screenshotResponse(true, {
+      sessionId,
+      pageHeight: Math.max(scrollingElement.scrollHeight, document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0),
+      viewportWidth: globalThis.innerWidth,
+      viewportHeight: globalThis.innerHeight,
+      scrollX: globalThis.scrollX,
+      scrollY: globalThis.scrollY
+    });
+  };
+
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (sender && sender.id === chrome.runtime.id
       && isBridgePlainObject(message)
@@ -4168,6 +4262,29 @@
       if (lifecycle) lifecycle.bannerRequested = false;
       requestBannerRuntime(lifecycle, message.type === BANNER_REFRESH_MESSAGE).then((ok) => sendResponse({ ok: ok === true }));
       return true;
+    }
+    if (sender && sender.id === chrome.runtime.id
+      && isBridgePlainObject(message)
+      && message.type === SCREENSHOT_MESSAGE_TYPE) {
+      const keys = bridgeOwnKeys(message);
+      const validSession = typeof message.sessionId === "string" && /^[A-Za-z0-9_-]{16,64}$/.test(message.sessionId);
+      if (!validSession) return false;
+      if (message.action === "prepare" && keys === "action\u001FsessionId\u001Ftype") {
+        prepareScreenshotSession(message.sessionId).then(sendResponse, () => sendResponse(screenshotResponse(false, { error: "PREPARE" })));
+        return true;
+      }
+      if (message.action === "scroll" && keys === "action\u001Ffirst\u001FsessionId\u001FtargetY\u001Ftype"
+        && typeof message.first === "boolean" && Number.isSafeInteger(message.targetY)
+        && message.targetY >= 0 && message.targetY <= 1000000) {
+        scrollScreenshotSession(message.sessionId, message.targetY, message.first)
+          .then(sendResponse, () => sendResponse(screenshotResponse(false, { error: "SCROLL" })));
+        return true;
+      }
+      if (message.action === "restore" && keys === "action\u001FsessionId\u001Ftype") {
+        sendResponse(screenshotResponse(restoreScreenshotSession(message.sessionId)));
+        return false;
+      }
+      return false;
     }
     if (!sender || sender.id !== chrome.runtime.id
       || !isBridgePlainObject(message)

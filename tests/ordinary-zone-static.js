@@ -128,7 +128,8 @@ assert.match(renderer, /music: Object\.freeze\(\{ title: "音乐", nav: "https:\
 assert.match(renderer, /\.ordinary-floor \.custom-rank-wrap \{[^}]*align-items: flex-start/);
 assert.match(renderer, /\.ordinary-floor \.custom-rank-wrap \.title \{[^}]*margin: 0/);
 assert.match(renderer, /\.ordinary-floor \.custom-pgc-rank-wrap \.title \{[^}]*margin: 0/);
-assert.match(renderer, /@media \(max-width: 1654px\)[\s\S]*ordinary-floor \.zone-list-box \{ grid-template-columns: repeat\(4/);
+assert.match(renderer, /@media \(max-width: 1654px\)[\s\S]*ordinary-floor \.zone-list-box \{ width: 854px; grid-template-columns: repeat\(5/);
+assert.match(renderer, /const createOrdinarySkeletonItems = \(type, count = 12\)/);
 assert.match(css, /\.ordinary-floor \.zone-list-box[\s\S]*repeat\(5/);
 assert.match(css, /\.ordinary-floor \.zone-list-box > \.video-card-common:nth-child\(n \+ 9\)/);
 assert.match(css, /\.ordinary-pgc-floor \.ordinary-pgc-card \.card-pic \{[\s\S]*aspect-ratio: 3 \/ 4/);
