@@ -62,6 +62,10 @@ assert.match(rendererSource, /space\.appendChild\(liveList\); space\.appendChild
 assert.doesNotMatch(rendererSource.slice(rendererSource.indexOf("const createLiveFloor ="), rendererSource.indexOf("const createPgcTimelineLink =")), /floor-layout|appendProxyFloorContent/);
 assert.match(rendererSource, /bili-icon_xinxi_renqi/);
 assert.match(rendererSource, /live-card__keyframe/);
+assert.match(rendererSource, /keyframe\.setAttribute\("data-keyframe-src", item\.keyframe\)/);
+assert.match(rendererSource, /const requestKeyframeForTarget = \(target\) =>/);
+assert.match(rendererSource, /addListenerWithCleanup\(list, "pointerover"/);
+assert.match(rendererSource, /keyframe\.setAttribute\("src", source\)/);
 assert.match(rendererSource, /resolveLiveFloorImageUrl = \(value\) => resolveFocusUrl\(value, FOCUS_IMAGE_HOSTS, \["\/bfs\/"\], true\)/);
 assert.match(rendererSource, /setLiveFloorRooms = \(view, data, source = "recommendation"\)/);
 assert.match(contentSource, /LIVE_FLOOR_SESSION_KEY/);
@@ -74,6 +78,7 @@ for (const css of [rendererSource, cssSource]) {
   assert.match(css, /#bili_report_live > \.live-list \{ flex: 0 0 1286px/);
   assert.match(css, /max-width: 1870px[\s\S]*1070px/);
   assert.match(css, /max-width: 1654px[\s\S]*854px/);
+  assert.match(css, /max-width:\s*1654px[\s\S]*live-list-box\s*\{\s*grid-template-columns:\s*repeat\(4, 206px\)/);
   assert.match(css, /max-width: 1438px[\s\S]*710px/);
   assert.match(css, /nth-child\(n \+ 11\)/);
   assert.match(css, /nth-child\(n \+ 9\)/);

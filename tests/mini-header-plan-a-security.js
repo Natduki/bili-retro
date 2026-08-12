@@ -541,8 +541,9 @@ check("DOM and transport sink denylist", () => {
     assert.equal(pattern.test(rendererSource), false, `forbidden source match ${pattern}`);
   }
   const contentSource = fs.readFileSync(path.join(ROOT, "content.js"), "utf8");
-  assert.equal((rendererSource.match(/createElement\("iframe"\)/g) || []).length, 2);
-  assert.match(rendererSource, /setAttribute\("src", "https:\/\/t\.bilibili\.com\/pages\/nav\/index_new"\)/);
+  assert.equal((rendererSource.match(/createElement\("iframe"\)/g) || []).length, 0);
+  assert.doesNotMatch(rendererSource, /t\.bilibili\.com\/pages\/nav\/index_new/);
+  assert.match(rendererSource, /dynamic-local/);
   assert.match(contentSource, /attachShadow\(\{ mode: "closed" \}\)/);
   assert.match(rendererSource, /createElementNS/);
   assert.match(rendererSource, /textContent/);
@@ -612,6 +613,17 @@ check("manifest permission and exact WAR boundary", () => {
   ]) assert.equal(fs.existsSync(path.join(ROOT, "assets", "homepage", "mini-header-popovers", "manga", required)), true, required);
   const downloadResources = resources.filter((value) => value.startsWith("assets/homepage/mini-header-popovers/download/"));
   assert.deepEqual(downloadResources, [DOWNLOAD_QR_KEY, DOWNLOAD_PINK_KEY]);
+  const dynamicResources = resources.filter((value) => value.startsWith("assets/homepage/mini-header-popovers/dynamic/"));
+  assert.deepEqual(dynamicResources, [
+    "assets/homepage/mini-header-popovers/dynamic/verify-big.svg",
+    "assets/homepage/mini-header-popovers/dynamic/verify-personal.svg",
+    "assets/homepage/mini-header-popovers/dynamic/verify-organization.svg",
+    "assets/homepage/mini-header-popovers/dynamic/expand-more.svg",
+    "assets/homepage/mini-header-popovers/dynamic/expand-more-blue.svg",
+    "assets/homepage/mini-header-popovers/dynamic/watch-later.png",
+    "assets/homepage/mini-header-popovers/dynamic/watch-later-added.png",
+    "assets/homepage/mini-header-popovers/dynamic/loading.gif"
+  ]);
   assert.equal(resources.filter((value) => value === DOWNLOAD_QR_KEY).length, 1);
   assert.equal(resources.filter((value) => value === DOWNLOAD_PINK_KEY).length, 1);
   assert.deepEqual(resources.filter((value) => value.startsWith("assets/homepage/search/")), SEARCH_MARK_KEYS);
@@ -626,7 +638,7 @@ check("manifest permission and exact WAR boundary", () => {
   assert.match(sha256Json(baselineManifest), /^[A-F0-9]{64}$/);
   const downloadStart = resources.indexOf(DOWNLOAD_QR_KEY);
   assert.equal(downloadStart, resources.indexOf("assets/homepage/homepage-runtime/international-home/download-client.svg") + 1);
-  assert.equal(resources[downloadStart + downloadResources.length], "assets/homepage/homepage-runtime/international-home/category-symbols.svg");
+  assert.equal(resources[downloadStart + downloadResources.length + dynamicResources.length], "assets/homepage/homepage-runtime/international-home/category-symbols.svg");
   const r5War = [
     "assets/homepage/mini-header-popovers/manga/recommend-5d41943c5e2e71c1fb6564676c1ee312ea2684f5.png@272w",
     "assets/homepage/mini-header-popovers/manga/recommend-d9ee84f8bab10116c9521d6344c520699a6968e1.jpg@272w",
@@ -917,10 +929,10 @@ check("profile popover uses controlled auth projection and measured structure", 
   assert.equal(profileContainer.getAttribute("class"), "vp-container profile-popover-surface");
   assert.deepEqual(profileContainer.children.map((node) => (node.getAttribute("class") || "").split(/\s+/)[0]), [
     "big-avatar-container--default", "profile-nickname", "levelIcon", "level-content", "profile-assets",
-    "profile-stats", "profile-menu", "profile-menu-submenu-wrap", "logout"
+    "profile-stats", "profile-menu", "logout"
   ]);
   assert.deepEqual(findNodesByClass(profilePanel, "profile-menu-label").map((node) => node.textContent), [
-    "个人中心", "投稿管理", "推荐服务", "语言：简体中文", "退出"
+    "个人中心", "投稿管理", "推荐服务", "主题：浅色", "退出"
   ]);
   const profileMenuRows = Object.fromEntries(findNodesByClass(profilePanel, "profile-menu-label")
     .map((label) => [label.textContent, label.parentNode.parentNode]));
@@ -956,26 +968,14 @@ check("profile popover uses controlled auth projection and measured structure", 
   assert.equal(serviceItems.every((node) => node.getAttribute("target") === "_blank" && node.getAttribute("role") === "menuitem"), true);
   assert.equal(serviceItems.every((node) => !node.listeners.has("click")), true);
   const languageItems = findNodesByClass(profilePanel, "profile-language-item");
-  assert.deepEqual(languageItems.map((node) => node.children[1].textContent), ["简体中文", "繁体中文"]);
-  assert.deepEqual(languageItems.map((node) => node.getAttribute("aria-selected")), ["true", "false"]);
-  assert.equal(languageItems[0].classList.contains("is-selected"), true);
-  assert.equal(languageItems[1].classList.contains("is-selected"), false);
-  assert.equal(languageItems[0].children[0].getAttribute("data-glyph-codepoint"), "U+E756");
+  assert.deepEqual(languageItems.map((node) => node.children[1].textContent), ["深色", "浅色"]);
+  assert.deepEqual(languageItems.map((node) => node.getAttribute("aria-selected")), ["false", "true"]);
+  assert.equal(languageItems[0].classList.contains("is-selected"), false);
+  assert.equal(languageItems[1].classList.contains("is-selected"), true);
   assert.equal(languageItems[1].children[0].getAttribute("data-glyph-codepoint"), "U+E756");
-  assert.equal(languageItems[1].children[0].classList.contains("is-hidden"), true);
-  assert.equal(languageItems[1].children[0].getAttribute("aria-hidden"), "true");
-  assert.equal(languageItems.every((node) => !node.listeners.has("click")), true);
-  const languageStateBeforeClick = languageItems.map((node) => ({
-    selected: node.getAttribute("aria-selected"),
-    checked: node.getAttribute("aria-checked"),
-    className: node.getAttribute("class")
-  }));
-  for (const item of languageItems) item.dispatch("click", { detail: 1 });
-  assert.deepEqual(languageItems.map((node) => ({
-    selected: node.getAttribute("aria-selected"),
-    checked: node.getAttribute("aria-checked"),
-    className: node.getAttribute("class")
-  })), languageStateBeforeClick, "language items are inert and keep selected state");
+  assert.equal(languageItems[1].children[0].classList.contains("is-hidden"), false);
+  assert.equal(languageItems[1].children[0].getAttribute("aria-hidden"), "false");
+  assert.equal(languageItems.every((node) => node.listeners.has("click")), true);
   assert.equal(document.defaultView.location.assigned, "");
   assert.equal(profileMenuRows["退出"].tagName, "BUTTON");
   assert.equal(profileMenuRows["退出"].getAttribute("type"), "button");
@@ -1655,9 +1655,7 @@ check("game reducer hover/focus/keyboard/Escape and unique active", () => {
   assert.deepEqual([box.getAttribute("class"), left.getAttribute("class"), right.getAttribute("class"), preview.getAttribute("class")], [
     "box clearfix", "left", "right", "imgdiv"
   ]);
-  assert.equal(panel.children.length, 2);
-  assert.equal(panel.children[1].getAttribute("class"), "official-nav-frame");
-  assert.equal(panel.children[1].getAttribute("hidden"), "true");
+  assert.equal(panel.children.length, 1);
   assert.equal(box.children.length, 3);
   assert.deepEqual(box.children, [left, right, preview]);
   assert.equal(preview.parentNode, box);
@@ -1761,9 +1759,7 @@ check("manga reducer uses six local ordered previews", () => {
   assert.deepEqual([app.getAttribute("class"), recommendations.getAttribute("class"), divider.getAttribute("class"), popularity.getAttribute("class")], [
     "manga-app-layout", "manga-recommendation-list", "manga-divider", "manga-popularity-list"
   ]);
-  assert.equal(panel.children.length, 2);
-  assert.equal(panel.children[1].getAttribute("class"), "official-nav-frame");
-  assert.equal(panel.children[1].getAttribute("hidden"), "true");
+  assert.equal(panel.children.length, 1);
   assert.equal(app.children.length, 3);
   const cards = findNodesByClass(panel, "manga-recommend-item");
   const recommendationImages = findNodesByClass(panel, "manga-recommend-image");
@@ -2024,20 +2020,30 @@ check("R3 live nav-user-center DOM geometry and interaction contract", () => {
   const dynamicBadge = dynamicNav.children[0].children[1];
   assert.equal(dynamicBadge.getAttribute("data-role"), "dynamic-entrance");
   assert.equal(dynamicBadge.getAttribute("hidden"), "true");
-  assert.equal(api.setDynamicData(dynamicPanel, { count: 0, avatar: null }), true);
+  const emptyDynamic = { count: 0, avatar: null, video: [], live: [], article: [] };
+  assert.equal(api.setDynamicData(dynamicPanel, emptyDynamic), true);
   assert.equal(dynamicBadge.getAttribute("hidden"), "true", "zero dynamic count hides badge");
   assert.equal(dynamicBadge.textContent, "");
-  assert.equal(api.setDynamicData(dynamicPanel, { count: 7, avatar: null }), true);
+  assert.equal(api.setDynamicData(dynamicPanel, { ...emptyDynamic, count: 7 }), true);
   assert.equal(dynamicBadge.getAttribute("hidden"), null, "positive dynamic count shows badge");
   assert.equal(dynamicBadge.textContent, "7");
-  assert.equal(api.setDynamicData(dynamicPanel, { count: 99, avatar: null }), true);
+  assert.equal(api.setDynamicData(dynamicPanel, { ...emptyDynamic, count: 99 }), true);
   assert.equal(dynamicBadge.textContent, "99+", "large dynamic count uses 99+ display");
   assert.equal(api.setDynamicData(dynamicPanel, { count: 7, extra: true }), false,
     "dynamic renderer rejects extra output keys");
   assert.equal(api.setDynamicData(dynamicPanel, null), true);
   assert.equal(dynamicBadge.getAttribute("hidden"), "true", "clearing dynamic data hides badge");
   assert.equal(signin.children[3].children[0].children[0].getAttribute("class"), "t");
-  assert.equal(dynamicPanel.children[0].tagName, "IFRAME");
+  assert.equal(dynamicPanel.children[0].getAttribute("class"), "tab-bar");
+  assert.equal(dynamicPanel.children[0].children.length, 3);
+  assert.deepEqual(dynamicPanel.children[0].children.map((node) => node.textContent), ["视频", "直播", "专栏"]);
+  assert.equal(dynamicPanel.children.some((node) => node.tagName === "IFRAME"), false);
+  assert.match(rendererSource, /\.nav-item-dynamic \.i-frame\.dynamic-local \{[^}]*display:flex;[^}]*width:382px;[^}]*height:540px;[^}]*padding:13px 10px 10px;/);
+  assert.match(rendererSource, /\.dynamic-local > \.tab-bar, \.dynamic-local > \.container \{[^}]*width:362px;/);
+  assert.match(rendererSource, /\.dynamic-local \.container \{[^}]*height:445px;[^}]*max-height:445px;[^}]*overflow:hidden auto;/);
+  assert.match(rendererSource, /panel\.getAttribute\("data-popover-kind"\) === "dynamic"/);
+  assert.match(rendererSource, /scroller\.scrollTop = Math\.max\(0, Math\.min\(current \+ deltaY, maxScrollTop\)\)/);
+  assert.match(rendererSource, /addListenerWithCleanup\(panel, "wheel", handleDynamicWheel, listenerCleanups, \{ passive: false \}\)/);
   assert.equal(signin.children[6].children[0].tagName, "A");
   assert.equal(signin.children[6].children[0].children[0].getAttribute("class"), "name");
   assert.equal(signin.children[6].children[0].children[0].textContent, "创作中心");
@@ -2053,8 +2059,11 @@ check("R3 live nav-user-center DOM geometry and interaction contract", () => {
   assert.equal(header.statusPanel.getAttribute("hidden"), null, "unknown auth branch is initially observable");
   assert.equal(findNodesByClass(header.header, "mini-upload-wrap").length, 0, "upload uses plain div wrapper");
   assert.equal(header.authPopoverGroups.length, 7, "six nested/portal auth panels plus upload");
-  assert.equal(header.authPopoverGroups.filter((entry) => entry.panel.parentNode === header.overlayLayer).length, 5);
-  assert.equal(header.authPopoverGroups.filter((entry) => entry.panel.parentNode !== header.overlayLayer).length, 2);
+  assert.equal(header.authPopoverGroups.filter((entry) => entry.panel.parentNode === header.overlayLayer).length, 6);
+  assert.equal(header.authPopoverGroups.filter((entry) => entry.panel.parentNode !== header.overlayLayer).length, 1);
+  const dynamicEntry = header.authPopoverGroups.find((entry) => entry.panel.getAttribute("data-popover-kind") === "dynamic");
+  assert.equal(dynamicEntry.portal, true, "dynamic uses the measured overlay positioning path");
+  assert.equal(dynamicEntry.panel.parentNode, header.overlayLayer, "dynamic panel is not positioned inside its narrow trigger");
 
   const expectedKinds = ["avatar", "vip", "message", "dynamic", "favorite", "history", "upload"];
   assert.deepEqual(Array.from(header.authPopoverGroups, (entry) => entry.panel.getAttribute("data-popover-kind")), expectedKinds);
@@ -2076,6 +2085,7 @@ check("R3 live nav-user-center DOM geometry and interaction contract", () => {
   assert.deepEqual(portalMetrics, {
     avatar: ["280px", "468px", "2001"],
     vip: ["260px", "241px", "2003"],
+    dynamic: ["382px", "540px", "2021"],
     favorite: ["520px", "518px", "2005"],
     history: ["370px", "518px", "2007"],
     upload: ["380px", "78px", "2009"]

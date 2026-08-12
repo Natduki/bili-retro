@@ -867,6 +867,112 @@
   opacity: 1;
 }
 
+@keyframes watch-later-feedback-bounce {
+  0% { transform: translateX(-50%) scale(0); }
+  50% { transform: translateX(-50%) scale(1.1); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+
+.ordinary-floor .video-card-common .watch-later-video.van-watchlater.black.is-feedback .wl-tips {
+  opacity: 1;
+  animation: watch-later-feedback-bounce .26s ease-out;
+}
+
+.ordinary-floor .video-card-common .watch-later-video.van-watchlater.black.is-loading {
+  cursor: progress;
+}
+
+.ordinary-floor:not(.ordinary-pgc-floor):not([data-floor-id="course"]) .video-card-common .card-pic .watch-later-video.van-watchlater.black {
+  top: 8px;
+  right: 8px;
+  bottom: auto;
+}
+
+.ordinary-floor:not(.ordinary-pgc-floor):not([data-floor-id="course"]) .video-card-common .card-pic {
+  overflow: visible;
+}
+
+.ordinary-floor:not(.ordinary-pgc-floor):not([data-floor-id="course"]) .video-card-common .card-pic > .card-link {
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+.ordinary-floor:not(.ordinary-pgc-floor):not([data-floor-id="course"]) .video-card-common .card-pic .watch-later-video.van-watchlater.black .wl-tips {
+  top: 34px;
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  transform-origin: center;
+}
+
+.ordinary-floor:not(.ordinary-pgc-floor):not([data-floor-id="course"]) .video-card-common .card-pic .count {
+  bottom: 7px;
+  height: 16px;
+  min-height: 16px;
+  align-items: center;
+  padding: 0 8px;
+  background: none;
+  line-height: 16px;
+}
+
+.ordinary-floor:not(.ordinary-pgc-floor):not([data-floor-id="course"]) .video-card-common .card-pic .count .left,
+.ordinary-floor:not(.ordinary-pgc-floor):not([data-floor-id="course"]) .video-card-common .card-pic .count .right,
+.ordinary-floor:not(.ordinary-pgc-floor):not([data-floor-id="course"]) .video-card-common .card-pic .count .metric {
+  display: flex;
+  height: 16px;
+  min-height: 16px;
+  align-items: center;
+  line-height: 16px;
+}
+
+.ordinary-floor:not(.ordinary-pgc-floor):not([data-floor-id="course"]) .video-card-common .card-pic .count .right {
+  width: auto;
+  min-width: 0;
+  height: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  float: none;
+  position: static;
+  transform: none;
+}
+
+.ordinary-floor:not(.ordinary-pgc-floor):not([data-floor-id="course"]) .video-card-common .card-pic .count .left {
+  width: auto;
+  min-width: 0;
+  height: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+  flex: 0 1 auto;
+  float: none;
+  position: static;
+  transform: none;
+}
+
+.ordinary-floor:not(.ordinary-pgc-floor):not([data-floor-id="course"]) .video-card-common .card-pic .count .metric--duration {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  line-height: 16px;
+  vertical-align: middle;
+}
+
+.ordinary-floor:not(.ordinary-pgc-floor):not([data-floor-id="course"]) .video-card-common .card-pic .count .metric--duration {
+  transform: translateY(0);
+}
+
+.ordinary-floor:not(.ordinary-pgc-floor):not([data-floor-id="course"]) .video-card-common .card-pic .count .douga-metric-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  margin-right: 4px;
+  vertical-align: initial;
+}
+
 .up-cover__icon {
   width: 22px;
   height: 22px;
@@ -1259,6 +1365,45 @@
 
   .partner {
     flex-direction: column;
+  }
+}
+
+#bili_read,
+#bili_report_read,
+#bili_report_read > .article-list {
+  min-height: 504px;
+}
+
+#bili_report_read .zone-list-box {
+  height: 452px;
+  align-content: flex-start;
+  row-gap: 24px;
+}
+
+#bili_report_read .article-card {
+  height: 95px;
+}
+
+#bili_live .live-card__keyframe.is-unavailable {
+  display: none;
+}
+
+@media (max-width: 1654px) and (min-width: 981px) {
+  #bili_live .live-list-box {
+    grid-template-columns: repeat(4, 206px);
+  }
+
+  #bili_live .live-card,
+  #bili_live .live-card .pic {
+    width: 206px;
+  }
+
+  #bili_live .live-card .txt {
+    width: 158px;
+  }
+
+  #bili_live .live-card:nth-child(n + 9) {
+    display: none;
   }
 }
 +  /* Live floor: legacy direct layout and fixed canonical width chain. */

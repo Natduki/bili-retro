@@ -15,11 +15,11 @@ const CATEGORY_ORIGIN = `chrome-extension://${EXTENSION_ID}`;
 const CATEGORY_BASE = `${CATEGORY_ORIGIN}${CATEGORY_PATH}`;
 
 const ASSETS = [
-  ["prototype/dynamic/assets/vendor/bilibili/homepage-shared/category-symbols.svg", "assets/homepage/homepage-runtime/international-home/category-symbols.svg", "a9e85cd5c9724820258a98e49ec49ce997889816c6876106a31a86a47acd9434"],
+  ["assets/homepage/homepage-runtime/international-home/category-symbols.svg", "assets/homepage/homepage-runtime/international-home/category-symbols.svg", "05ecc8688469ad5065764bf25315ce6b56ecce2c415860e2c0e7ef0155f6058f"],
   ["docs/old/www.bilibili.com2026.6.7/s1.hdslb.com/bfs/static/jinkela/international-home/assets/icon_gold.png", "assets/homepage/homepage-runtime/international-home/icon_gold.png", "99931b4514426ac8333b70bc6c458fa43bfdaea8dca6d53c030045d8044e50fd"],
   ["docs/old/www.bilibili.com2026.6.7/s1.hdslb.com/bfs/static/jinkela/international-home/assets/icon_silver.png", "assets/homepage/homepage-runtime/international-home/icon_silver.png", "a5a8ad02bb877f260682efaba972bdce9a5ac36caee078adc1d401dcbd08cccc"],
   ["docs/old/www.bilibili.com2026.6.7/s1.hdslb.com/bfs/static/jinkela/international-home/assets/bgm-nodata.png", "assets/homepage/homepage-runtime/international-home/bgm-nodata.png", "f1b9f60208ffe5da8da9df8eba11db4cf5f33f74c9a3bf021d54c6be401fc043"],
-  ["assets/homepage/homepage-runtime/banner/download-client.svg", "assets/homepage/homepage-runtime/international-home/download-client.svg", "fb6e114943f924e378738b223d9ec5d67a1684b5580771ea2d7297e0664078bb"]
+  ["assets/homepage/homepage-runtime/international-home/download-client.svg", "assets/homepage/homepage-runtime/international-home/download-client.svg", "4d3d392ac273c6cbedaa1da38ff9e5dd73e229e309cac047c5b7fc3ea99dbaf4"]
 ];
 
 function sha256(filePath) {
@@ -210,8 +210,7 @@ function assertSinkScan() {
     assert.equal(test.includes(needle), false, `test sink scan: ${needle}`);
   }
   assert.equal(renderer.includes("resolveLocalAssetUrl(ASSET_KEYS.CATEGORY_SYMBOLS)"), true, "category URL uses frozen asset key");
-  assert.match(renderer, /createElement\("iframe"\)[\s\S]*?setAttribute\("src", "https:\/\/t\.bilibili\.com\/pages\/nav\/index_new"\)/,
-    "the sole iframe has a fixed Bilibili navigation URL");
+  assert.equal((renderer.match(/createElement\("iframe"\)/g) || []).length, 0, "header popovers use no iframe");
   assert.equal(renderer.includes("createCategorySprite(root)"), false, "partial inline sprite is not rendered");
   assert.equal(renderer.includes(join("bili-$", "{type}")), false, "arbitrary type-to-fragment concatenation absent");
   assert.equal(renderer.includes("ASSET_KEYS.PGC_EMPTY"), true, "PGC empty branch uses fixed asset key");

@@ -3,6 +3,7 @@
 
   const MESSAGE_TYPE = "BILI_RETRO_DIAGNOSTICS_GET_V1";
   const SCREENSHOT_MESSAGE_TYPE = "BILI_RETRO_FULL_PAGE_SCREENSHOT_V1";
+  const THEME_STORAGE_KEY = "biliRetroThemeV1";
   const POLL_INTERVAL_MS = 1500;
   const CAPTURE_INTERVAL_MS = 550;
   const MAX_CANVAS_DIMENSION = 32767;
@@ -41,6 +42,15 @@
   let pollTimer = 0;
   let exportInProgress = false;
   let bannerSnapshot = { settings:{ source:"official", packageId:null, rotation:"manual" }, packages:[] };
+  const applyPopupTheme = (theme) => {
+    document.documentElement.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
+  };
+  try {
+    chrome.storage.local.get([THEME_STORAGE_KEY], (stored) => applyPopupTheme(stored && stored[THEME_STORAGE_KEY]));
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === "local" && changes[THEME_STORAGE_KEY]) applyPopupTheme(changes[THEME_STORAGE_KEY].newValue);
+    });
+  } catch { applyPopupTheme("light"); }
 
   const classifyStatus = (value) => {
     const status = String(value || "").toLowerCase();
@@ -308,7 +318,9 @@
         exportStatus.textContent = `正在截取第 ${index + 1}/${positions.length} 屏`;
         const position = await screenshotMessage({ action:"scroll", sessionId, targetY:positions[index], first:index === 0 });
         if (!position || position.ok !== true) throw new Error("SCROLL");
-        if (index > 0) await sleep(CAPTURE_INTERVAL_MS);
+        if (index === 0 && Math.abs(position.scrollY) > 1) throw new Error("TOP");
+        if (Math.abs(position.scrollY - positions[index]) > 1) throw new Error("POSITION");
+        await sleep(index === 0 ? 250 : CAPTURE_INTERVAL_MS);
         const dataUrl = await chrome.tabs.captureVisibleTab(activeTab.windowId, { format:"png" });
         const image = await loadCaptureImage(dataUrl);
         if (!canvas) {
@@ -347,7 +359,7 @@
   };
 
   const diagnosticBase = () => ({
-    reportVersion:2,
+    reportVersion:3,
     exportedAt:new Date().toISOString(),
     userDescription:feedbackText.value.trim(),
     snapshot:latestSnapshot
@@ -362,6 +374,7 @@
       `扩展版本: ${snapshot.extension ? `${snapshot.extension.version} / ${snapshot.extension.build}` : "未连接"}`,
       `页面: ${snapshot.page ? snapshot.page.url : "未连接"}`,
       `登录态: ${snapshot.states ? snapshot.states["data-extension-b-auth-state"] || "unknown" : "unknown"}`,
+      `登录资料投影: ${snapshot.evidence && snapshot.evidence.auth ? `${snapshot.evidence.auth.projectionQuality} (${snapshot.evidence.auth.projectionIssues.join(", ") || "无异常"})` : "--"}`,
       `环境: ${snapshot.environment ? `${snapshot.environment.viewportWidth}x${snapshot.environment.viewportHeight} DPR ${snapshot.environment.devicePixelRatio}` : "--"}`,
       "",
       "接口请求:"
@@ -372,6 +385,12 @@
     lines.push("", "错误日志:");
     if (!(snapshot.errors || []).length) lines.push("- 无");
     for (const error of snapshot.errors || []) lines.push(`- ${new Date(error.timestamp).toISOString()} ${operationLabel(error.operation)} ${error.status}/${error.errorKind} ${formatDuration(error.durationMs)}`);
+    lines.push("", "自动发现:");
+    if (!(snapshot.evidence && snapshot.evidence.findings || []).length) lines.push("- 无");
+    for (const finding of snapshot.evidence && snapshot.evidence.findings || []) lines.push(`- ${finding}`);
+    lines.push("", "仍未提交的模块:");
+    const pending = snapshot.evidence && snapshot.evidence.moduleSummary ? snapshot.evidence.moduleSummary.pendingModules : [];
+    lines.push(pending.length ? `- ${pending.join(", ")}` : "- 无");
     return `${lines.join("\n")}\n`;
   };
 

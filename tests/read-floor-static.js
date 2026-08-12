@@ -38,6 +38,8 @@ assert.match(renderer, /Array\.from\(\{ length: 10 \}/);
 assert.match(renderer, /renderReadSkeleton\(view\);/);
 assert.match(renderer, /view\.rank\.setAttribute\("data-state", "fixture"\)/);
 assert.match(css, /#bili_report_read \.article-card\{display:flex;width:623px;height:90px\}/);
+assert.match(css, /#bili_report_read \.zone-list-box \{\s*height: 452px;\s*align-content: flex-start;\s*row-gap: 24px;/);
+assert.match(css, /#bili_report_read \.article-card \{\s*height: 95px;/);
 assert.match(css, /#bili_read\{width:1630px\}@media screen and \(max-width:1870px\)\{#bili_read\{width:1414px\}\}@media screen and \(max-width:1654px\)\{#bili_read\{width:1198px\}\}@media screen and \(max-width:1438px\)\{#bili_read\{width:999px\}\}/);
 assert.match(css, /#bili_report_read \.article-card \.pic\{display:block;width:120px;height:90px/);
 assert.match(css, /#bili_report_read \.rank-wrap \.preview \.pic[^}]*width:112px;height:63px/);

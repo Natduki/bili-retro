@@ -4,7 +4,7 @@
   const ROOT_URL = "https://www.bilibili.com/";
   const HOST_ID = "extension-b-stage-2-host";
   const BUILD_MARKER = "stage-11-banner-import-r21";
-  const EXTENSION_VERSION = "0.2.68";
+  const EXTENSION_VERSION = "0.2.69";
   const STYLE_ID = "extension-b-stage-2-hide-style";
   const URL_POLL_MS = 250;
   const BODY_WAIT_MS = 50;
@@ -43,13 +43,16 @@
   const SHOW_LOGIN_OPERATION = "SHOW_LOGIN";
   const LOGOUT_OPERATION = "LOGOUT";
   const PROFILE_STATS_OPERATION = "PROFILE_STATS";
+  const THEME_STORAGE_KEY = "biliRetroThemeV1";
+  const THEMES = new Set(["light", "dark"]);
   const DIAGNOSTICS_MESSAGE_TYPE = "BILI_RETRO_DIAGNOSTICS_GET_V1";
   const SCREENSHOT_MESSAGE_TYPE = "BILI_RETRO_FULL_PAGE_SCREENSHOT_V1";
-  const DIAGNOSTICS_SCHEMA_VERSION = 1;
+  const DIAGNOSTICS_SCHEMA_VERSION = 2;
   const DIAGNOSTICS_ERROR_LIMIT = 100;
   const SCREENSHOT_SESSION_TIMEOUT_MS = 180000;
   const diagnosticOperations = new Map();
   const diagnosticErrors = [];
+  let diagnosticAuthProjection = Object.freeze({ quality: "unavailable", issues: Object.freeze([]) });
   let screenshotSession = null;
   const diagnosticNow = () => Date.now();
   const diagnosticClock = () => globalThis.performance && typeof globalThis.performance.now === "function"
@@ -247,6 +250,7 @@
       this.searchAutocompleteTimer = 0;
       this.recommendationPrefetch = null;
       this.initialRenderGateOpen = false;
+      this.theme = "light";
       this.watchLaterPending = new Set();
       this.focusCarousel = null;
       this.focusGeneration = 0;
@@ -702,40 +706,47 @@
   const isBridgeStatus = (value) => value === "logged_in"
     || value === "logged_out"
     || value === "unknown";
+  const AUTH_PROJECTION_QUALITIES = new Set(["complete", "partial", "not-applicable", "unavailable"]);
+  const AUTH_PROJECTION_ISSUES = new Set([
+    "auth-envelope-invalid", "auth-signal-inconsistent", "uname-invalid", "face-invalid", "level-invalid",
+    "coins-invalid", "vip-invalid", "email-verification-invalid", "mobile-verification-invalid", "mid-invalid",
+    "pendant-invalid", "wallet-invalid"
+  ]);
+  const isBridgeAuthProjection = (value) => isBridgePlainObject(value)
+    && bridgeOwnKeys(value) === "issues\u001Fquality"
+    && AUTH_PROJECTION_QUALITIES.has(value.quality)
+    && Array.isArray(value.issues)
+    && value.issues.length <= AUTH_PROJECTION_ISSUES.size
+    && new Set(value.issues).size === value.issues.length
+    && value.issues.every((issue) => AUTH_PROJECTION_ISSUES.has(issue));
   const isBridgeAuthProfile = (value) => {
     if (value === null) return true;
     return isBridgePlainObject(value)
       && bridgeOwnKeys(value) === "bcoin\u001Fcoins\u001FcurrentExp\u001FdynamicUrl\u001FemailVerified\u001Fface\u001FfavoriteUrl\u001FfollowerUrl\u001FfollowingUrl\u001Flevel\u001FmobileVerified\u001FnextExp\u001Fpendant\u001Funame\u001FvipStatus"
-      && isLiveText(value.uname, 64)
-      && isLiveAvatarUrl(value.face)
-      && isLiveProfileNavigationUrl(value.followingUrl, "fans/follow")
-      && isLiveProfileNavigationUrl(value.followerUrl, "fans/fans")
-      && isLiveProfileNavigationUrl(value.dynamicUrl, "dynamic")
-      && isLiveProfileNavigationUrl(value.favoriteUrl, "favlist")
-      && Number.isSafeInteger(value.level)
-      && value.level >= 0
-      && value.level <= 6
-      && Number.isSafeInteger(value.currentExp)
-      && value.currentExp >= 0
-      && value.currentExp <= 1000000000
+      && (value.uname === null || isLiveText(value.uname, 64))
+      && (value.face === null || isLiveAvatarUrl(value.face))
+      && (value.followingUrl === null || isLiveProfileNavigationUrl(value.followingUrl, "fans/follow"))
+      && (value.followerUrl === null || isLiveProfileNavigationUrl(value.followerUrl, "fans/fans"))
+      && (value.dynamicUrl === null || isLiveProfileNavigationUrl(value.dynamicUrl, "dynamic"))
+      && (value.favoriteUrl === null || isLiveProfileNavigationUrl(value.favoriteUrl, "favlist"))
+      && (value.level === null || (Number.isSafeInteger(value.level) && value.level >= 0 && value.level <= 6))
+      && (value.currentExp === null || (Number.isSafeInteger(value.currentExp)
+        && value.currentExp >= 0 && value.currentExp <= 1000000000))
       && (value.nextExp === null || (Number.isSafeInteger(value.nextExp) && value.nextExp >= 0 && value.nextExp <= 1000000000))
-      && typeof value.coins === "number"
-      && Number.isFinite(value.coins)
-      && value.coins >= 0
-      && value.coins <= 1000000000
+      && (value.coins === null || (typeof value.coins === "number"
+        && Number.isFinite(value.coins) && value.coins >= 0 && value.coins <= 1000000000))
       && (value.bcoin === null || (typeof value.bcoin === "number"
         && Number.isFinite(value.bcoin)
         && value.bcoin >= 0
         && value.bcoin <= 1000000000))
-      && isBridgeBoolean(value.emailVerified)
-      && isBridgeBoolean(value.mobileVerified)
+      && (value.emailVerified === null || isBridgeBoolean(value.emailVerified))
+      && (value.mobileVerified === null || isBridgeBoolean(value.mobileVerified))
       && (value.pendant === null || (isBridgePlainObject(value.pendant)
         && bridgeOwnKeys(value.pendant) === "image\u001FimageEnhance\u001FimageEnhanceFrame"
         && [value.pendant.image, value.pendant.imageEnhance, value.pendant.imageEnhanceFrame]
           .every((url) => url === "" || isLivePendantUrl(url))))
-      && Number.isSafeInteger(value.vipStatus)
-      && value.vipStatus >= 0
-      && value.vipStatus <= 2;
+      && (value.vipStatus === null || (Number.isSafeInteger(value.vipStatus)
+        && value.vipStatus >= 0 && value.vipStatus <= 2));
   };
   const isBridgeBoolean = (value) => typeof value === "boolean";
   const isBridgeCounter = (value) => Number.isSafeInteger(value)
@@ -1143,8 +1154,9 @@
   const isBridgeSummaryData = (operation, value) => {
     if (!isBridgePlainObject(value)) return false;
     if (operation === "AUTH_STATUS") {
-      return bridgeOwnKeys(value) === "profile\u001Fstatus"
+      return bridgeOwnKeys(value) === "profile\u001Fprojection\u001Fstatus"
         && isBridgeStatus(value.status)
+        && isBridgeAuthProjection(value.projection)
         && isBridgeAuthProfile(value.profile)
         && (value.status === "logged_in" ? value.profile !== null : value.profile === null);
     }
@@ -1168,10 +1180,25 @@
       return ["reply", "at", "like", "sysMsg", "sessionUnread"].every((key) => isBridgeCounter(value[key]));
     }
     if (operation === "DYNAMIC_SUMMARY") {
-      return bridgeOwnKeys(value) === "avatar\u001Fcount"
+      const isItem = (item) => isBridgePlainObject(item)
+        && ["avatar\u001Fcover\u001Ffresh\u001Fhref\u001FtimeText\u001Ftitle\u001Fuid\u001Funame\u001FuserHref\u001FverifyType", "aid\u001Favatar\u001Fcover\u001Ffresh\u001Fhref\u001FtimeText\u001Ftitle\u001Fuid\u001Funame\u001FuserHref\u001FverifyType"].includes(bridgeOwnKeys(item))
+        && Number.isSafeInteger(item.uid) && item.uid >= 0
+        && typeof item.uname === "string" && item.uname.length > 0 && item.uname.length <= 80
+        && typeof item.title === "string" && item.title.length > 0 && item.title.length <= 240
+        && typeof item.timeText === "string" && item.timeText.length <= 32
+        && typeof item.fresh === "boolean"
+        && Number.isSafeInteger(item.verifyType) && [-1, 0, 1].includes(item.verifyType)
+        && (item.aid === undefined || (Number.isSafeInteger(item.aid) && item.aid > 0))
+        && isLiveAvatarUrl(item.avatar) && isLiveAvatarUrl(item.cover)
+        && typeof item.href === "string" && item.href.startsWith("https://")
+        && typeof item.userHref === "string" && item.userHref.startsWith("https://");
+      return bridgeOwnKeys(value) === "article\u001Favatar\u001Fcount\u001Flive\u001Fvideo"
         && Number.isSafeInteger(value.count)
         && value.count >= 0
-        && (value.avatar === null || isLiveAvatarUrl(value.avatar));
+        && (value.avatar === null || isLiveAvatarUrl(value.avatar))
+        && Array.isArray(value.video) && value.video.length <= 50 && value.video.every(isItem)
+        && Array.isArray(value.live) && value.live.length <= 10 && value.live.every(isItem)
+        && Array.isArray(value.article) && value.article.length <= 50 && value.article.every(isItem);
     }
     if (operation === "FAVORITE_SUMMARY") {
       return isFavoriteData(value);
@@ -1209,6 +1236,41 @@
       return isSearchData(value);
     }
     return false;
+  };
+  const classifyDynamicSummaryFailure = (value) => {
+    if (!isBridgePlainObject(value)) return "TOP_OBJECT";
+    if (bridgeOwnKeys(value) !== "article\u001Favatar\u001Fcount\u001Flive\u001Fvideo") return "TOP_KEYS";
+    if (!Number.isSafeInteger(value.count) || value.count < 0) return "TOP_COUNT";
+    if (value.avatar !== null && !isLiveAvatarUrl(value.avatar)) return "TOP_AVATAR";
+    const allowedKeys = new Set([
+      "avatar\u001Fcover\u001Ffresh\u001Fhref\u001FtimeText\u001Ftitle\u001Fuid\u001Funame\u001FuserHref\u001FverifyType",
+      "aid\u001Favatar\u001Fcover\u001Ffresh\u001Fhref\u001FtimeText\u001Ftitle\u001Fuid\u001Funame\u001FuserHref\u001FverifyType"
+    ]);
+    const classifyItem = (item) => {
+      if (!isBridgePlainObject(item)) return "OBJECT";
+      if (!allowedKeys.has(bridgeOwnKeys(item))) return "KEYS";
+      if (!Number.isSafeInteger(item.uid) || item.uid < 0) return "UID";
+      if (typeof item.uname !== "string" || !item.uname || item.uname.length > 80) return "UNAME";
+      if (typeof item.title !== "string" || !item.title || item.title.length > 240) return "TITLE";
+      if (typeof item.timeText !== "string" || item.timeText.length > 32) return "TIME";
+      if (typeof item.fresh !== "boolean") return "FRESH";
+      if (!Number.isSafeInteger(item.verifyType) || ![-1, 0, 1].includes(item.verifyType)) return "VERIFY";
+      if (item.aid !== undefined && (!Number.isSafeInteger(item.aid) || item.aid <= 0)) return "AID";
+      if (!isLiveAvatarUrl(item.avatar)) return "AVATAR";
+      if (!isLiveAvatarUrl(item.cover)) return "COVER";
+      if (typeof item.href !== "string" || !item.href.startsWith("https://")) return "HREF";
+      if (typeof item.userHref !== "string" || !item.userHref.startsWith("https://")) return "USER_HREF";
+      return "UNKNOWN";
+    };
+    for (const [kind, limit] of [["video", 50], ["live", 10], ["article", 50]]) {
+      if (!Array.isArray(value[kind])) return `${kind.toUpperCase()}_ARRAY`;
+      if (value[kind].length > limit) return `${kind.toUpperCase()}_LIMIT`;
+      for (const item of value[kind]) {
+        const code = classifyItem(item);
+        if (code !== "UNKNOWN") return `${kind.toUpperCase()}_${code}`;
+      }
+    }
+    return "UNKNOWN";
   };
   const isExactBridgeResponse = (value, requestId, operation) => {
     if (!isBridgePlainObject(value)
@@ -2307,6 +2369,26 @@
       || payload.aid <= 0
       || !globalThis.ExtensionBHomepageRenderer
       || typeof globalThis.ExtensionBHomepageRenderer.setRecommendationWatchLaterState !== "function") return;
+    const trigger = event.currentTarget && event.currentTarget.getAttribute("data-role") === "watch-later"
+      && event.currentTarget.getAttribute("data-aid") === String(payload.aid)
+      ? event.currentTarget
+      : null;
+    const applyTriggerState = (added, loading, feedback) => {
+      if (!trigger || !trigger.isConnected) return;
+      trigger.classList.toggle("added", added);
+      trigger.classList.toggle("is-loading", loading);
+      trigger.setAttribute("aria-busy", loading ? "true" : "false");
+      trigger.setAttribute("aria-pressed", added ? "true" : "false");
+      trigger.setAttribute("title", added ? "移除" : "稍后再看");
+      const tips = trigger.querySelector(".wl-tips");
+      if (!tips) return;
+      tips.textContent = feedback || (added ? "移除" : "稍后再看");
+      trigger.classList.remove("is-feedback");
+      if (feedback) {
+        void trigger.offsetWidth;
+        trigger.classList.add("is-feedback");
+      }
+    };
     const authState = currentLifecycle.statusPanel && currentLifecycle.statusPanel.getAttribute("data-state");
     if (authState === "logged_out") {
       openOfficialLogin(currentLifecycle, event);
@@ -2315,6 +2397,7 @@
     if (currentLifecycle.watchLaterPending.has(payload.aid)) return;
     const action = payload.added ? "remove" : "add";
     currentLifecycle.watchLaterPending.add(payload.aid);
+    applyTriggerState(payload.added, true, "");
     globalThis.ExtensionBHomepageRenderer.setRecommendationWatchLaterState(
       currentLifecycle.recommendation,
       { aid: payload.aid, added: payload.added, loading: true, feedback: "none" }
@@ -2330,6 +2413,7 @@
           currentLifecycle.recommendation,
           { aid: payload.aid, added: payload.added, loading: false, feedback: "none" }
         );
+        applyTriggerState(payload.added, false, action === "add" ? "添加失败，请重试" : "移除失败，请重试");
         if (authState === "unknown") openOfficialLogin(currentLifecycle, event);
         return;
       }
@@ -2337,6 +2421,7 @@
         currentLifecycle.recommendation,
         { aid: payload.aid, added: action === "add", loading: false, feedback: action === "add" ? "added" : "removed" }
       );
+      applyTriggerState(action === "add", false, action === "add" ? "已加稍后再看" : "已从稍后再看列表中移除");
     }, () => {
       currentLifecycle.watchLaterPending.delete(payload.aid);
       if (!isCurrentLifecycle(currentLifecycle)) return;
@@ -2344,6 +2429,7 @@
         currentLifecycle.recommendation,
         { aid: payload.aid, added: payload.added, loading: false, feedback: "none" }
       );
+      applyTriggerState(payload.added, false, action === "add" ? "添加失败，请重试" : "移除失败，请重试");
       if (authState === "unknown") openOfficialLogin(currentLifecycle, event);
     });
   };
@@ -2441,6 +2527,9 @@
       if (!isBridgeSummaryData("DYNAMIC_SUMMARY", data)) {
         currentLifecycle.dynamicRequested = false;
         setSummaryRuntimeState(currentLifecycle, "dynamic", "response-invalid");
+        if (currentLifecycle.host && typeof classifyDynamicSummaryFailure === "function") {
+          currentLifecycle.host.setAttribute("data-extension-b-dynamic-error", classifyDynamicSummaryFailure(data));
+        }
         return;
       }
       let applied = false;
@@ -2453,6 +2542,7 @@
       }
       currentLifecycle.dynamicRequested = false;
       if (applied) {
+        if (currentLifecycle.host && typeof currentLifecycle.host.removeAttribute === "function") currentLifecycle.host.removeAttribute("data-extension-b-dynamic-error");
         currentLifecycle.dynamicLastGood = data;
         currentLifecycle.dynamicDataLoaded = true;
         setSummaryRuntimeState(currentLifecycle, "dynamic", "committed");
@@ -2518,7 +2608,13 @@
     };
 
     requestPageBridge("AUTH_STATUS", currentLifecycle).then((status) => {
-      if (status && isBridgeStatus(status.status) && isBridgeAuthProfile(status.profile)) {
+      if (status && isBridgeStatus(status.status) && isBridgeAuthProfile(status.profile)
+        && isBridgeAuthProjection(status.projection)) {
+        diagnosticAuthProjection = Object.freeze({
+          quality: status.projection.quality,
+          issues: Object.freeze(status.projection.issues.slice())
+        });
+        currentLifecycle.host.setAttribute("data-extension-b-auth-projection", status.projection.quality);
         handleStatus(status.status, status.profile);
       }
     });
@@ -4139,6 +4235,16 @@
     const navigationEntry = globalThis.performance && typeof globalThis.performance.getEntriesByType === "function"
       ? globalThis.performance.getEntriesByType("navigation")[0]
       : null;
+    const operations = Array.from(diagnosticOperations.values()).sort((left, right) => right.updatedAt - left.updatedAt);
+    const authOperation = operations.find((entry) => entry.operation === "AUTH_STATUS") || null;
+    const authState = states["data-extension-b-auth-state"] || "unknown";
+    const findings = [];
+    if (authOperation && authOperation.status === "success" && authState === "unknown") findings.push("AUTH_SUCCESS_STATE_UNKNOWN");
+    if (authState === "logged_in" && diagnosticAuthProjection.quality === "partial") findings.push("AUTH_PROFILE_PARTIAL");
+    const pendingModules = Object.entries(states)
+      .filter(([name, value]) => name.endsWith("-state") && ["bound", "loading", "bridge-wait", "request-posted"].includes(value))
+      .map(([name]) => name.replace(/^data-extension-b-/, "").replace(/-state$/, ""))
+      .slice(0, 64);
     return Object.freeze({
       schemaVersion: DIAGNOSTICS_SCHEMA_VERSION,
       generatedAt: diagnosticNow(),
@@ -4158,8 +4264,18 @@
         devicePixelRatio: Number.isFinite(globalThis.devicePixelRatio) ? globalThis.devicePixelRatio : 1
       }),
       states: Object.freeze(states),
-      operations: Object.freeze(Array.from(diagnosticOperations.values()).sort((left, right) => right.updatedAt - left.updatedAt)),
-      errors: Object.freeze(diagnosticErrors.slice().reverse())
+      operations: Object.freeze(operations),
+      errors: Object.freeze(diagnosticErrors.slice().reverse()),
+      evidence: Object.freeze({
+        auth: Object.freeze({
+          state: authState,
+          requestStatus: authOperation ? authOperation.status : "not-requested",
+          projectionQuality: diagnosticAuthProjection.quality,
+          projectionIssues: diagnosticAuthProjection.issues
+        }),
+        moduleSummary: Object.freeze({ totalStates: Object.keys(states).length, pendingModules: Object.freeze(pendingModules) }),
+        findings: Object.freeze(findings)
+      })
     });
   };
 
@@ -4189,6 +4305,20 @@
   const waitScreenshotFrame = () => new Promise((resolve) => globalThis.requestAnimationFrame(
     () => globalThis.requestAnimationFrame(resolve)
   ));
+  const settleScreenshotScroll = async (targetY) => {
+    const scrollingElement = document.scrollingElement || document.documentElement;
+    const maximumY = Math.max(0, scrollingElement.scrollHeight - globalThis.innerHeight);
+    const expectedY = Math.min(Math.max(0, targetY), maximumY);
+    scrollingElement.scrollTop = expectedY;
+    globalThis.scrollTo(0, expectedY);
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      await waitScreenshotFrame();
+      if (Math.abs(globalThis.scrollY - expectedY) <= 1) return expectedY;
+      scrollingElement.scrollTop = expectedY;
+      globalThis.scrollTo(0, expectedY);
+    }
+    return null;
+  };
   const waitVisibleImages = async () => {
     const viewportHeight = Math.max(1, globalThis.innerHeight);
     const images = Array.from(document.images).filter((image) => {
@@ -4220,8 +4350,11 @@
       restoreScreenshotSession(sessionId);
       return screenshotResponse(false, { error: "HOST" });
     }
-    globalThis.scrollTo(0, 0);
-    await waitScreenshotFrame();
+    const settledY = await settleScreenshotScroll(0);
+    if (settledY !== 0 || globalThis.scrollY > 1) {
+      restoreScreenshotSession(sessionId);
+      return screenshotResponse(false, { error: "TOP" });
+    }
     await waitVisibleImages();
     return screenshotResponse(true, {
       sessionId,
@@ -4240,8 +4373,8 @@
       restoreScreenshotSession(sessionId);
       return screenshotResponse(false, { error: "HOST" });
     }
-    globalThis.scrollTo(0, targetY);
-    await waitScreenshotFrame();
+    const settledY = await settleScreenshotScroll(targetY);
+    if (settledY === null) return screenshotResponse(false, { error: "POSITION" });
     await waitVisibleImages();
     const scrollingElement = document.scrollingElement || document.documentElement;
     return screenshotResponse(true, {
@@ -4318,12 +4451,22 @@
       host.setAttribute("data-extension-b-build", BUILD_MARKER);
       host.setAttribute("data-extension-b-version", EXTENSION_VERSION);
       host.setAttribute("data-extension-b-owner", currentLifecycle.ownerMarker);
+      host.setAttribute("data-bili-retro-theme", currentLifecycle.theme);
       const shadowRoot = host.attachShadow({ mode: "closed" });
       let rendered;
       try {
         rendered = globalThis.ExtensionBHomepageRenderer.renderHomepage({
           root: shadowRoot,
           authStatus: "unknown",
+          theme: currentLifecycle.theme,
+          onThemeChange: (theme) => {
+            if (!THEMES.has(theme) || !isCurrentLifecycle(currentLifecycle)) return;
+            currentLifecycle.theme = theme;
+            currentLifecycle.host.setAttribute("data-bili-retro-theme", theme);
+            currentLifecycle.host.setAttribute("data-extension-b-theme-state", theme);
+            if (currentLifecycle.rendered && typeof currentLifecycle.rendered.setTheme === "function") currentLifecycle.rendered.setTheme(theme);
+            try { chrome.storage.local.set({ [THEME_STORAGE_KEY]: theme }); } catch {}
+          },
           onLoginRequest: (event) => openOfficialLogin(currentLifecycle, event),
           onRecommendationRequest: (event) => {
             if (event && event.isTrusted === true) requestRecommendationFeed(currentLifecycle, true);
@@ -4361,6 +4504,7 @@
       currentLifecycle.host = host;
       currentLifecycle.shadowRoot = shadowRoot;
       currentLifecycle.rendered = rendered;
+      currentLifecycle.host.setAttribute("data-extension-b-theme-state", currentLifecycle.theme);
       currentLifecycle.readFloor = rendered && rendered.readFloor ? rendered.readFloor : null;
       currentLifecycle.mangaFloor = rendered && rendered.mangaFloor ? rendered.mangaFloor : null;
       if (rendered && rendered.ordinaryZones) {
@@ -4436,6 +4580,18 @@
     const initialRecommendationBatch = createRecommendationInitialBatch();
     currentLifecycle.recommendationBatch = initialRecommendationBatch;
     lifecycle = currentLifecycle;
+    try {
+      chrome.storage.local.get([THEME_STORAGE_KEY], (stored) => {
+        if (!isCurrentLifecycle(currentLifecycle)) return;
+        const theme = stored && THEMES.has(stored[THEME_STORAGE_KEY]) ? stored[THEME_STORAGE_KEY] : "light";
+        currentLifecycle.theme = theme;
+        if (currentLifecycle.host) {
+          currentLifecycle.host.setAttribute("data-bili-retro-theme", theme);
+          currentLifecycle.host.setAttribute("data-extension-b-theme-state", theme);
+        }
+        if (currentLifecycle.rendered && typeof currentLifecycle.rendered.setTheme === "function") currentLifecycle.rendered.setTheme(theme);
+      });
+    } catch {}
 
     const hideStyle = document.createElement("style");
     hideStyle.id = STYLE_ID;

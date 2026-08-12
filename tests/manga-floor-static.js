@@ -21,6 +21,9 @@ assert.match(renderer, /#bili_report_manga \.manga-rank-item:nth-child\(n\+2\) \
 assert.match(renderer, /margin:1px 8px 0 0/);
 assert.match(renderer, /cardListenerCleanups: \[\]/, "remote manga covers must register lifecycle cleanup callbacks");
 assert.match(renderer, /bili-icon_caozuo_huanyihuan/);
+assert.match(renderer, /const spinChangeIcon = \(\) => \{/);
+assert.match(renderer, /change\.classList\.remove\("is-spinning"\);[\s\S]*void change\.offsetWidth;[\s\S]*change\.classList\.add\("is-spinning"\);/);
+assert.match(renderer, /addListenerWithCleanup\(change, "animationend", \(\) => change\.classList\.remove\("is-spinning"\)/);
 assert.match(renderer, /@media screen and \(max-width:1870px\)/);
 assert.match(renderer, /@media screen and \(max-width:1654px\)/);
 assert.match(renderer, /@media screen and \(max-width:1438px\)/);

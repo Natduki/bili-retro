@@ -80,7 +80,7 @@ assert.ok(historyValidatorStart >= 0 && historyValidatorEnd > historyValidatorSt
         };
       },
       makeDynamicSummary: (count, withExtraKey = false) => {
-        const value = { count, avatar: null };
+        const value = { count, avatar: null, video: [], live: [], article: [] };
         if (withExtraKey) value.extra = true;
         return value;
       },
@@ -193,9 +193,11 @@ const api = windowObject.__EXTENSION_B_AUTH_BRIDGE_TEST__;
 const inBridgeRealm = (source) => vm.runInContext(source, context);
 const toLocal = (value) => JSON.parse(JSON.stringify(value));
 assert.deepEqual(toLocal(api.OPERATION_ROUTES.DYNAMIC_SUMMARY), [{
-  host: "api.bilibili.com",
-  path: "/x/web-interface/dynamic/entrance?alltype_offset=0&video_offset=0&article_offset=0",
-  method: "GET"
+  host: "api.bilibili.com", path: "/x/web-interface/dynamic/entrance?alltype_offset=0&video_offset=0&article_offset=0", method: "GET"
+}, {
+  host: "api.vc.bilibili.com", path: "/dynamic_svr/v1/dynamic_svr/dynamic_new", method: "GET"
+}, {
+  host: "api.live.bilibili.com", path: "/xlive/web-ucenter/v1/xfetter/FeedList?page=1&pagesize=10", method: "GET"
 }]);
 const dynamicExtra = inBridgeRealm("({ code: 0, message: 'ok', data: { entrance: { icon: 'https://i0.hdslb.com/bfs/face/dynamic-avatar.webp', ignored_entrance_field: true }, update_info: { item: { count: 7, ignored_item_field: true }, ignored_update_field: 'ignored' }, ignored_data_field: null }, upstream_extra: { secret: 'must-not-leak' } })");
 const projectedDynamic = api.projectDynamicSummary(dynamicExtra);
@@ -359,6 +361,7 @@ for (const routes of Object.values(api.OPERATION_ROUTES)) {
 
 const projectedAuth = api.projectAuth(inBridgeRealm(`({ code: 0, message: "ok", ttl: 1, data: ${JSON.stringify(validAuthData)} })`));
 assert.equal(projectedAuth.status, "logged_in");
+assert.deepEqual(toLocal(projectedAuth.projection), { quality: "complete", issues: [] });
 assert.deepEqual(toLocal(projectedAuth.profile), {
   face: "https://i0.hdslb.com/bfs/face/profile.webp",
   uname: "Yuki765",
@@ -391,7 +394,10 @@ for (const [key, suffix] of [["followingUrl", "fans/follow"], ["followerUrl", "f
 }
 for (const invalidMid of [0, -1, NaN, Infinity, "0", "00123", "not-digits", "9007199254740992"]) {
   const invalidData = { ...toLocal(validAuthData), mid: invalidMid };
-  assert.equal(api.projectAuth(inBridgeRealm(`({ code: 0, message: "ok", ttl: 1, data: ${JSON.stringify(invalidData)} })`)).status, "unknown");
+  const partial = api.projectAuth(inBridgeRealm(`({ code: 0, message: "ok", ttl: 1, data: ${JSON.stringify(invalidData)} })`));
+  assert.equal(partial.status, "logged_in");
+  assert.equal(partial.profile.favoriteUrl, null);
+  assert.deepEqual(toLocal(partial.projection), { quality: "partial", issues: ["mid-invalid"] });
 }
 assert.equal(api.projectAuth(inBridgeRealm(`({ code: 0, message: "ok", ttl: 1, data: ${JSON.stringify({ ...toLocal(validAuthData), mid: "123456" })} })`)).status, "logged_in");
 assert.equal(api.isAuthEnvelope(inBridgeRealm("({ code: 0, data: { isLogin: false }, upstream_extra: true })")), true);
@@ -400,7 +406,7 @@ for (const loggedOutEnvelope of [
   "({ code: 0, msg: 'not-required', data: { isLogin: false, extra: null }, upstream_extra: true })",
   "({ code: -101, data: { isLogin: false, extra: { ignored: true } }, upstream_extra: true })"
 ]) {
-  assert.deepEqual(toLocal(api.projectAuth(inBridgeRealm(loggedOutEnvelope))), { status: "logged_out", profile: null });
+  assert.deepEqual(toLocal(api.projectAuth(inBridgeRealm(loggedOutEnvelope))), { status: "logged_out", profile: null, projection: { quality: "not-applicable", issues: [] } });
 }
 for (const invalidAuthEnvelope of [
   "({ code: 0 })",
@@ -411,7 +417,7 @@ for (const invalidAuthEnvelope of [
   "({ code: -101, data: { isLogin: true } })",
   "({ code: 1, data: { isLogin: true } })"
 ]) {
-  assert.deepEqual(toLocal(api.projectAuth(inBridgeRealm(invalidAuthEnvelope))), { status: "unknown", profile: null });
+  assert.equal(api.projectAuth(inBridgeRealm(invalidAuthEnvelope)).status, "unknown");
 }
 assert.deepEqual(toLocal(api.projectAuth(inBridgeRealm(`({ code: 0, upstream_extra: true, data: ${JSON.stringify({ ...toLocal(validAuthData), unconsumed: { ignored: true } })} })`)).profile), toLocal(projectedAuth.profile));
 const projectedLogout = api.projectLogout(inBridgeRealm("({ code: 0, data: { ignored: true }, upstream_extra: 'ignored' })"));
@@ -519,7 +525,9 @@ assert.deepEqual(toLocal(api.projectAuth(inBridgeRealm(`({ code: 0, message: "ok
 });
 for (const field of ["email_verified", "mobile_verified"]) {
   const invalidData = { ...toLocal(validAuthData), [field]: "1" };
-  assert.equal(api.projectAuth(inBridgeRealm(`({ code: 0, message: "ok", ttl: 1, data: ${JSON.stringify(invalidData)} })`)).status, "unknown");
+  const partial = api.projectAuth(inBridgeRealm(`({ code: 0, message: "ok", ttl: 1, data: ${JSON.stringify(invalidData)} })`));
+  assert.equal(partial.status, "logged_in");
+  assert.equal(partial.profile[field === "email_verified" ? "emailVerified" : "mobileVerified"], null);
 }
 assert.equal(api.isAuthAvatarUrl(inBridgeRealm("\"//i3.hdslb.com/bfs/face/profile.webp\"")), true);
 assert.equal(api.normalizeAuthPendantUrl(inBridgeRealm("\"//i3.hdslb.com/bfs/garb/item/pendant.webp\"")), "https://i3.hdslb.com/bfs/garb/item/pendant.webp");
@@ -529,19 +537,25 @@ for (const hostilePendantUrl of [
   "https://i0.hdslb.com/bfs/garb/item/pendant.webp?token=secret",
   "https://i0.hdslb.com/bfs/face/pendant.webp"
 ]) assert.equal(api.normalizeAuthPendantUrl(inBridgeRealm(JSON.stringify(hostilePendantUrl))), null, hostilePendantUrl);
-assert.deepEqual(toLocal(api.projectAuth(inBridgeRealm(`({ code: 0, data: ${JSON.stringify({
+const invalidPendantAuth = api.projectAuth(inBridgeRealm(`({ code: 0, data: ${JSON.stringify({
   ...toLocal(validAuthData),
   pendant: { image: "https://evil.example/bfs/garb/item/pendant.webp" }
-})} })`))), { status: "unknown", profile: null }, "invalid pendant rejects the profile payload");
+})} })`));
+assert.equal(invalidPendantAuth.status, "logged_in", "invalid pendant cannot discard an authenticated session");
+assert.equal(invalidPendantAuth.profile.pendant, null);
+assert.deepEqual(toLocal(invalidPendantAuth.projection), { quality: "partial", issues: ["pendant-invalid"] });
 for (const hostileProfileFace of [
   "https://evil.example/bfs/face/profile.webp",
   "http://i0.hdslb.com/bfs/face/profile.webp",
   "https://i0.hdslb.com/bfs/face/profile.webp?token=secret",
   "https://i0.hdslb.com/bfs/other/profile.webp"
 ]) assert.equal(api.isAuthAvatarUrl(inBridgeRealm(JSON.stringify(hostileProfileFace))), false, hostileProfileFace);
-assert.deepEqual(toLocal(api.projectAuth(inBridgeRealm("({ code: 0, message: 'ok', ttl: 1, data: { isLogin: false, cookie: 'secret' } })"))), { status: "logged_out", profile: null });
-assert.deepEqual(toLocal(api.projectAuth(inBridgeRealm("({ code: 0, message: 'ok', ttl: 1, data: { token: 'secret' } })"))), { status: "unknown", profile: null });
-assert.deepEqual(toLocal(api.projectAuth(inBridgeRealm("({ code: 0, data: { isLogin: true } })"))), { status: "unknown", profile: null });
+assert.equal(api.projectAuth(inBridgeRealm("({ code: 0, message: 'ok', ttl: 1, data: { isLogin: false, cookie: 'secret' } })")).status, "logged_out");
+assert.equal(api.projectAuth(inBridgeRealm("({ code: 0, message: 'ok', ttl: 1, data: { token: 'secret' } })")).status, "unknown");
+const minimalLoggedIn = api.projectAuth(inBridgeRealm("({ code: 0, data: { isLogin: true } })"));
+assert.equal(minimalLoggedIn.status, "logged_in");
+assert.equal(minimalLoggedIn.profile.uname, null);
+assert.equal(Object.prototype.hasOwnProperty.call(minimalLoggedIn.profile, "token"), false);
 
 const validLivePayload = inBridgeRealm(`({
   code: 0,
@@ -1132,13 +1146,20 @@ for (const invalid of [
   const dynamicController = new TestAbortController();
   const dynamicPromise = api.execute(requestFor("DYNAMIC_SUMMARY", "19191919191919191919191919191919"), dynamicController);
   assert.equal(fetchCalls, 23);
-  assert.equal(fetchRequests[22].url, "https://api.bilibili.com/x/web-interface/dynamic/entrance?alltype_offset=0&video_offset=0&article_offset=0");
+  assert.equal(fetchRequests[22].url, "https://api.bilibili.com/x/web-interface/nav");
   assertFixedOptions(fetchRequests[22], dynamicController.signal);
-  deferredFetches[22].resolve(response({
+  deferredFetches[22].resolve(response({ isLogin: true, mid: 259268115 }));
+  await flushMicrotasks();
+  assert.equal(fetchCalls, 27);
+  assert.equal(fetchRequests[23].url, "https://api.bilibili.com/x/web-interface/dynamic/entrance?alltype_offset=0&video_offset=0&article_offset=0");
+  deferredFetches[23].resolve(response({
     update_info: { item: { count: 99, ignored: true }, ignored: true },
     ignored: true
   }, { upstream_extra: "ignored" }));
-  assert.deepEqual(toLocal((await dynamicPromise).data), { count: 99, avatar: null });
+  deferredFetches[24].resolve(response({ cards: [], update_num: 0 }));
+  deferredFetches[25].resolve(response({ cards: [], update_num: 0 }));
+  deferredFetches[26].resolve(response({ list: [] }));
+  assert.deepEqual(toLocal((await dynamicPromise).data), { count: 99, avatar: null, video: [], live: [], article: [] });
 
   const logoutStart = contentSource.indexOf("  const bindLogoutSurface =");
   const logoutEnd = contentSource.indexOf("  const AUTH_SUMMARY_SURFACES =", logoutStart);
@@ -2044,7 +2065,7 @@ for (const invalid of [
   assert.match(contentSource, /requestPageBridge\(PROFILE_STATS_OPERATION, currentLifecycle\)/);
   assert.match(contentSource, /setProfileStats\(panel, data\)/);
   assert.match(contentSource, /isBridgeAuthProfile/);
-  assert.match(contentSource, /bridgeOwnKeys\(value\) === "profile\\u001Fstatus"/);
+  assert.match(contentSource, /bridgeOwnKeys\(value\) === "profile\\u001Fprojection\\u001Fstatus"/);
   assert.match(contentSource, /request: \(operation\) => requestPageBridge\(operation, currentLifecycle\)/);
   assert.match(contentSource, /summaryRoot\.querySelector\(\`\[aria-label=\"\$\{surface\.label\}\"\]\`\)/);
   assert.match(contentSource, /currentLifecycle\.summaryPanels && currentLifecycle\.summaryPanels\[surface\.kind\]/);
@@ -2396,7 +2417,11 @@ assert.match(contentSource, /const BUILD_MARKER = "stage-11-banner-import-r21"/)
     dynamicTrigger,
     statusPanel: { getAttribute: (name) => name === "data-state" ? "logged_in" : null },
     signin: { querySelector: (selector) => selector === '[aria-label="动态"]' ? dynamicTrigger : null },
-    host: { isConnected: true, setAttribute: (name, value) => dynamicStates.push([name, value]) },
+    host: {
+      isConnected: true,
+      setAttribute: (name, value) => dynamicStates.push([name, value]),
+      removeAttribute: (name) => dynamicStates.push([name, null])
+    },
     registerListener(target, type, listener) { target.addEventListener(type, listener); }
   };
   let dynamicRequests = 0;

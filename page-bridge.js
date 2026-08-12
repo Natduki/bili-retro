@@ -93,7 +93,9 @@
         host: "api.bilibili.com",
         path: "/x/web-interface/dynamic/entrance?alltype_offset=0&video_offset=0&article_offset=0",
         method: "GET"
-      })
+      }),
+      Object.freeze({ host: "api.vc.bilibili.com", path: "/dynamic_svr/v1/dynamic_svr/dynamic_new", method: "GET" }),
+      Object.freeze({ host: "api.live.bilibili.com", path: "/xlive/web-ucenter/v1/xfetter/FeedList?page=1&pagesize=10", method: "GET" })
     ]),
     FAVORITE_SUMMARY: Object.freeze([
       Object.freeze({
@@ -642,7 +644,6 @@
     && value >= 0
     && value <= 1000000000;
   const isAuthLevelInfo = (value) => isPlainObject(value)
-    && exactKeys(value, ["current_level", "current_min", "current_exp", "next_exp"])
     && isBoundedNonNegativeInteger(value.current_level, 6)
     && isBoundedNonNegativeInteger(value.current_min, 1000000000)
     && isBoundedNonNegativeInteger(value.current_exp, 1000000000)
@@ -675,48 +676,52 @@
     return data.wallet.bcoin_balance;
   };
   const projectAuthProfile = (data) => {
-    if (!hasNoControlChars(data.uname, 64)
-      || !isAuthAvatarUrl(data.face)
-      || !isAuthLevelInfo(data.level_info)
-      || !isAuthMoney(data.money)
-      || !isBoundedNonNegativeInteger(data.vipStatus, 2)
-      || !isAuthVerification(data.email_verified)
-      || !isAuthVerification(data.mobile_verified)) {
-      throw new Error("schema");
-    }
-    const face = data.face.startsWith("//") ? `https:${data.face}` : data.face;
-    const navigation = projectAuthNavigation(data.mid);
-    const pendant = projectAuthPendant(data.pendant);
+    const issues = [];
+    const uname = hasNoControlChars(data.uname, 64) ? data.uname : null;
+    if (uname === null) issues.push("uname-invalid");
+    const face = isAuthAvatarUrl(data.face) ? (data.face.startsWith("//") ? `https:${data.face}` : data.face) : null;
+    if (face === null) issues.push("face-invalid");
+    const levelInfo = isAuthLevelInfo(data.level_info) ? data.level_info : null;
+    if (levelInfo === null) issues.push("level-invalid");
+    const coins = isAuthMoney(data.money) ? data.money : null;
+    if (coins === null) issues.push("coins-invalid");
+    const vipStatus = isBoundedNonNegativeInteger(data.vipStatus, 2) ? data.vipStatus : null;
+    if (vipStatus === null) issues.push("vip-invalid");
+    const emailVerified = isAuthVerification(data.email_verified)
+      ? data.email_verified === true || data.email_verified === 1 : null;
+    if (emailVerified === null) issues.push("email-verification-invalid");
+    const mobileVerified = isAuthVerification(data.mobile_verified)
+      ? data.mobile_verified === true || data.mobile_verified === 1 : null;
+    if (mobileVerified === null) issues.push("mobile-verification-invalid");
+    let navigation = { followingUrl: null, followerUrl: null, dynamicUrl: null, favoriteUrl: null };
+    try { navigation = projectAuthNavigation(data.mid); } catch { issues.push("mid-invalid"); }
+    let pendant = null;
+    try { pendant = projectAuthPendant(data.pendant); } catch { issues.push("pendant-invalid"); }
+    let bcoin = null;
+    try { bcoin = projectAuthBcoin(data); } catch { issues.push("wallet-invalid"); }
     return Object.freeze({
-      face,
-      uname: data.uname,
-      level: data.level_info.current_level,
-      currentExp: data.level_info.current_exp,
-      nextExp: data.level_info.next_exp === "--" ? null : data.level_info.next_exp,
-      coins: data.money,
-      vipStatus: data.vipStatus,
-      bcoin: projectAuthBcoin(data),
-      emailVerified: data.email_verified === true || data.email_verified === 1,
-      mobileVerified: data.mobile_verified === true || data.mobile_verified === 1,
-      pendant,
-      ...navigation
+      profile: Object.freeze({
+        face, uname,
+        level: levelInfo ? levelInfo.current_level : null,
+        currentExp: levelInfo ? levelInfo.current_exp : null,
+        nextExp: levelInfo && levelInfo.next_exp !== "--" ? levelInfo.next_exp : null,
+        coins, vipStatus, bcoin, emailVerified, mobileVerified, pendant, ...navigation
+      }),
+      projection: Object.freeze({ quality: issues.length === 0 ? "complete" : "partial", issues: Object.freeze(issues) })
     });
   };
   const projectAuth = (raw) => {
     if (!isAuthEnvelope(raw)) {
-      return Object.freeze({ status: "unknown", profile: null });
+      return Object.freeze({ status: "unknown", profile: null, projection: Object.freeze({ quality: "unavailable", issues: Object.freeze(["auth-envelope-invalid"]) }) });
     }
     if (!raw.data.isLogin && AUTH_LOGGED_OUT_CODES.has(raw.code)) {
-      return Object.freeze({ status: "logged_out", profile: null });
+      return Object.freeze({ status: "logged_out", profile: null, projection: Object.freeze({ quality: "not-applicable", issues: Object.freeze([]) }) });
     }
     if (raw.code !== 0 || raw.data.isLogin !== true) {
-      return Object.freeze({ status: "unknown", profile: null });
+      return Object.freeze({ status: "unknown", profile: null, projection: Object.freeze({ quality: "unavailable", issues: Object.freeze(["auth-signal-inconsistent"]) }) });
     }
-    try {
-      return Object.freeze({ status: "logged_in", profile: projectAuthProfile(raw.data) });
-    } catch {
-      return Object.freeze({ status: "unknown", profile: null });
-    }
+    const projected = projectAuthProfile(raw.data);
+    return Object.freeze({ status: "logged_in", profile: projected.profile, projection: projected.projection });
   };
   const isLogoutEnvelope = (value) => isPlainObject(value)
     && Object.prototype.hasOwnProperty.call(value, "code")
@@ -800,6 +805,100 @@
       count: raw.data.update_info.item.count,
       avatar: avatar || null
     });
+  };
+  const DYNAMIC_VIDEO_TYPES = "8,512,4097,4098,4099,4100,4101";
+  const normalizeDynamicAsset = (value) => {
+    if (!hasNoControlChars(value, 2048)) return null;
+    const normalized = value.startsWith("//") ? `https:${value}` : value;
+    let parsed;
+    try { parsed = new URL(normalized); } catch { return null; }
+    if (!["http:", "https:"].includes(parsed.protocol)
+      || !["i0.hdslb.com", "i1.hdslb.com", "i2.hdslb.com", "i3.hdslb.com"].includes(parsed.hostname)
+      || parsed.username || parsed.password || parsed.port || parsed.hash
+      || !parsed.pathname.startsWith("/bfs/")) return null;
+    parsed.protocol = "https:";
+    return parsed.href;
+  };
+  const dynamicRoute = (uid, typeList) => {
+    if (!isAuthMid(uid) || ![DYNAMIC_VIDEO_TYPES, "64"].includes(typeList)) throw new Error("schema");
+    return Object.freeze({
+      host: "api.vc.bilibili.com",
+      path: `/dynamic_svr/v1/dynamic_svr/dynamic_new?uid=${encodeURIComponent(String(uid))}&type_list=${encodeURIComponent(typeList)}`,
+      method: "GET"
+    });
+  };
+  const dynamicUser = (desc) => {
+    const profile = desc && desc.user_profile;
+    const info = profile && profile.info;
+    if (!isPlainObject(info) || !isAuthMid(info.uid) || !hasNoControlChars(info.uname, 80)) return null;
+    const avatar = normalizeDynamicAsset(info.face);
+    if (!avatar) return null;
+    const verify = profile.card && profile.card.official_verify;
+    const verifyType = verify && Number.isSafeInteger(verify.type) && [-1, 0, 1].includes(verify.type) ? verify.type : -1;
+    return { uid: Number(info.uid), uname: info.uname, avatar, verifyType };
+  };
+  const dynamicTimeText = (timestamp) => {
+    if (!Number.isSafeInteger(timestamp) || timestamp <= 0) return "";
+    const delta = Math.max(0, Math.floor(Date.now() / 1000) - timestamp);
+    if (delta < 3600) return `${Math.max(1, Math.floor(delta / 60))} 分钟前`;
+    if (delta < 86400) return `${Math.floor(delta / 3600)} 小时前`;
+    const date = new Date(timestamp * 1000);
+    return `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+  const normalizeDynamicCards = (raw, kind) => {
+    if (!isPlainObject(raw) || raw.code !== 0 || !isPlainObject(raw.data) || !Array.isArray(raw.data.cards)) throw new Error("schema");
+    const updateCount = Number.isSafeInteger(raw.data.update_num) && raw.data.update_num >= 0 ? raw.data.update_num : 0;
+    const items = [];
+    for (const entry of raw.data.cards) {
+      if (items.length >= 50 || !isPlainObject(entry) || !isPlainObject(entry.desc)) continue;
+      const user = dynamicUser(entry.desc);
+      if (!user) continue;
+      let card;
+      try { card = JSON.parse(entry.card); } catch { continue; }
+      if (!isPlainObject(card)) continue;
+      const isArticle = kind === "article";
+      const title = isArticle ? card.title : (card.title || (card.apiSeasonInfo && card.apiSeasonInfo.title));
+      const coverValue = isArticle
+        ? (Array.isArray(card.origin_image_urls) ? card.origin_image_urls[0] : "")
+        : (card.pic || card.cover || (card.apiSeasonInfo && card.apiSeasonInfo.cover));
+      const cover = normalizeDynamicAsset(coverValue);
+      if (!hasNoControlChars(title, 240) || !title || !cover) continue;
+      const id = isArticle ? card.id : (entry.desc.bvid || card.bvid || card.aid);
+      const href = isArticle
+        ? `https://www.bilibili.com/read/cv${Number(id)}`
+        : (typeof entry.desc.bvid === "string" && /^BV[0-9A-Za-z]{10}$/.test(entry.desc.bvid)
+          ? `https://www.bilibili.com/video/${entry.desc.bvid}` : null);
+      if (!href) continue;
+      const aidCandidate = Number(card.aid || entry.desc.aid);
+      const aid = !isArticle && Number.isSafeInteger(aidCandidate) && aidCandidate > 0 ? aidCandidate : null;
+      items.push(Object.freeze({ ...user, ...(aid === null ? {} : { aid }), title, cover, href,
+        userHref: `https://space.bilibili.com/${user.uid}/dynamic`,
+        timeText: dynamicTimeText(entry.desc.timestamp), fresh: items.length < updateCount }));
+    }
+    return Object.freeze(items);
+  };
+  const normalizeDynamicLive = (raw) => {
+    if (!isPlainObject(raw) || raw.code !== 0 || !isPlainObject(raw.data) || !Array.isArray(raw.data.list)) throw new Error("schema");
+    const items = [];
+    for (const entry of raw.data.list) {
+      if (items.length >= 10 || !isPlainObject(entry) || !hasNoControlChars(entry.uname, 80)
+        || !hasNoControlChars(entry.title, 240)) continue;
+      const avatar = normalizeDynamicAsset(entry.face);
+      const cover = normalizeDynamicAsset(entry.cover || entry.pic);
+      const roomId = Number(entry.roomid || entry.room_id);
+      if (!avatar || !cover || !Number.isSafeInteger(roomId) || roomId <= 0) continue;
+      items.push(Object.freeze({ uid: Number.isSafeInteger(entry.uid) ? entry.uid : 0, uname: entry.uname, verifyType: -1,
+        avatar, title: entry.title, cover, href: `https://live.bilibili.com/${roomId}`, timeText: "正在直播", fresh: true,
+        userHref: Number.isSafeInteger(entry.uid) && entry.uid > 0 ? `https://space.bilibili.com/${entry.uid}` : `https://live.bilibili.com/${roomId}` }));
+    }
+    return Object.freeze(items);
+  };
+  const projectDynamicPanel = (summaryRaw, videoRaw, articleRaw, liveRaw) => {
+    const summary = projectDynamicSummary(summaryRaw);
+    return Object.freeze({ ...summary,
+      video: normalizeDynamicCards(videoRaw, "video"),
+      live: normalizeDynamicLive(liveRaw),
+      article: normalizeDynamicCards(articleRaw, "article") });
   };
   const isCounter = (value) => typeof value === "number"
     && Number.isSafeInteger(value)
@@ -2081,8 +2180,15 @@
         return { ok: true, data: projectMessage(msgRaw, sessionRaw) };
       }
       if (request.operation === "DYNAMIC_SUMMARY") {
-        const raw = await fetchFixed(OPERATION_ROUTES.DYNAMIC_SUMMARY[0], controller.signal);
-        return { ok: true, data: projectDynamicSummary(raw) };
+        const authRaw = await fetchFixed(OPERATION_ROUTES.AUTH_STATUS[0], controller.signal);
+        if (!isAuthEnvelope(authRaw) || authRaw.code !== 0 || authRaw.data.isLogin !== true || !isAuthMid(authRaw.data.mid)) throw new Error("schema");
+        const [summaryRaw, videoRaw, articleRaw, liveRaw] = await Promise.all([
+          fetchFixed(OPERATION_ROUTES.DYNAMIC_SUMMARY[0], controller.signal),
+          fetchFixed(dynamicRoute(authRaw.data.mid, DYNAMIC_VIDEO_TYPES), controller.signal),
+          fetchFixed(dynamicRoute(authRaw.data.mid, "64"), controller.signal),
+          fetchFixed(OPERATION_ROUTES.DYNAMIC_SUMMARY[2], controller.signal)
+        ]);
+        return { ok: true, data: projectDynamicPanel(summaryRaw, videoRaw, articleRaw, liveRaw) };
       }
       if (request.operation === "FAVORITE_SUMMARY") {
         const [folderRaw, laterRaw] = await Promise.all(
@@ -2293,6 +2399,10 @@
       projectProfileStats,
       isDynamicSummaryEnvelope,
       projectDynamicSummary,
+      projectDynamicPanel,
+      normalizeDynamicCards,
+      normalizeDynamicLive,
+      dynamicRoute,
       projectMessage,
       isSummaryEnvelope,
       projectFavorite,
