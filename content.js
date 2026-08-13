@@ -4483,9 +4483,7 @@
           },
           onOrdinaryZoneRequest: (type, event) => {
             if (!event || event.isTrusted === true) {
-              requestOrdinaryZoneFloor(currentLifecycle, type, true, false).then((applied) => {
-                if (applied && isCurrentLifecycle(currentLifecycle)) requestOrdinaryZoneFloor(currentLifecycle, type, false, true);
-              });
+              requestOrdinaryZoneFloor(currentLifecycle, type, true, true);
             }
           },
           onReadFloorRequest: () => requestReadFloor(currentLifecycle, true),

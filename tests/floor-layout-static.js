@@ -108,6 +108,7 @@ for (const key of expectedOrder) {
 
 assert.match(renderer, /\["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"\]/);
 assert.match(renderer, /\.ordinary-floor \.zone-list-box \{ width: 1286px; grid-template-columns: repeat\(6, minmax\(0, 206px\)\);/);
+assert.match(css, /\.ordinary-floor \.zone-list-box \{\s*width: 1286px;\s*grid-template-columns: repeat\(6, minmax\(0, 206px\)\);/);
 assert.match(renderer, /@media \(max-width: 1870px\) \{[\s\S]*\.ordinary-floor \.zone-list-box \{ width: 1070px; grid-template-columns: repeat\(5, minmax\(0, 206px\)\); \}[\s\S]*nth-child\(n \+ 11\)/);
 assert.match(renderer, /@media \(max-width: 1654px\) \{[\s\S]*\.ordinary-floor \.zone-list-box \{ width: 854px; grid-template-columns: repeat\(4, minmax\(0, 206px\)\); \}[\s\S]*nth-child\(n \+ 9\)/);
 assert.match(renderer, /@media \(max-width: 1438px\) \{[\s\S]*\.ordinary-floor \.zone-list-box \{ width: 710px; grid-template-columns: repeat\(4, minmax\(0, 170px\)\); \}[\s\S]*nth-child\(n \+ 9\)/);

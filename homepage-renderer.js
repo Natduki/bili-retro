@@ -9625,6 +9625,14 @@
           : data.itemType === "cheese" ? createCheeseCard(view, item, index)
           : createDougaCard(view, item, index, view.type)
       ));
+      if (view.type === "course" && visibleItems.length < 12) {
+        const skeletonItems = createOrdinarySkeletonItems("course", 12);
+        for (let index = visibleItems.length; index < 12; index += 1) {
+          const card = createCheeseCard(view, skeletonItems[index], index);
+          card.setAttribute("data-skeleton", "true");
+          listFragment.appendChild(card);
+        }
+      }
       view.list.replaceChildren(listFragment);
     }
     if (data.ranks.length > 0) {

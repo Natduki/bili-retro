@@ -1813,7 +1813,7 @@
     const items = [];
     const seen = new Set();
     for (const entry of orderedSourceItems) {
-      if (items.length >= (config.list === "pgcFeed" ? 12 : config.list === "regionFeed" ? 10 : 12)) break;
+      if (items.length >= 12) break;
       const item = config.list === "pgcFeed" ? normalizePgcFloorItem(entry, config) : normalizeOrdinaryItem(entry, config);
       const identity = item && (item.bvid || `ep${item.episodeId}`);
       if (!item || seen.has(identity)) continue;

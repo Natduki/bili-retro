@@ -1479,8 +1479,10 @@
 
 /* Keep the packaged stylesheet aligned with the renderer's in-shadow legacy composition. */
 .ordinary-floor .zone-list-box {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
+  width: 1286px;
+  grid-template-columns: repeat(6, minmax(0, 206px));
+  justify-content: space-between;
+  gap: 24px 10px;
 }
 
 .ordinary-floor .exchange-btn .more,

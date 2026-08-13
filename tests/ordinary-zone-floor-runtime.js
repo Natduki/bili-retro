@@ -190,13 +190,13 @@ assert.equal(api.isRequest(inRealm({
 })), true);
 
 const projected = api.projectOrdinaryZoneFloor("music", inRealm(listRaw), inRealm(rankRaw), 0);
-assert.equal(projected.items.length, 10, "music channel feed is capped to the large-screen ten-card layout");
+assert.equal(projected.items.length, 11, "music channel feed keeps all valid entries up to twelve cards");
 assert.equal(projected.ranks.length, 11, "all legal ranking entries cross the world");
 assert.equal(projected.rankType, "video");
 assert.equal(projected.itemType, "video");
 assert.equal(projected.status, "success");
 const projectedWithoutRank = api.projectOrdinaryZoneFloor("music", inRealm(listRaw), inRealm({ code: 0, data: { list: null } }), 0);
-assert.equal(projectedWithoutRank.items.length, 10, "valid floor videos survive a broken ranking response");
+assert.equal(projectedWithoutRank.items.length, 11, "valid floor videos survive a broken ranking response");
 assert.equal(projectedWithoutRank.ranks.length, 0, "broken ranking response preserves the ranking skeleton");
 assert.equal(projectedWithoutRank.rankType, "video");
 const legacyRankRaw = {
@@ -270,7 +270,7 @@ assert.equal(cheeseBatchOne.items[0].seasonId, 70004, "课堂换一换旋转课�
 (async () => {
   const result = await api.execute({ operation: "ORDINARY_ZONE_FLOOR", zoneType: "music", batch: 0, includeRank: true }, new AbortController());
   assert.equal(result.ok, true, JSON.stringify(result));
-  assert.equal(result.data.items.length, 10);
+  assert.equal(result.data.items.length, 11);
   assert.equal(result.data.ranks.length, 11);
   const empty = api.projectOrdinaryZoneFloor("sports", inRealm(emptyListRaw), inRealm(rankRaw), 0);
   assert.equal(empty.items.length, 0);
